@@ -1,0 +1,22 @@
+{
+  "enabledMcpjsonServers": [
+    "bluesec"
+  ],
+  "permissions": {
+    "allow": [
+      "mcp__bluesec__lease_task",
+      "mcp__bluesec__run_status",
+      "mcp__bluesec__tag_task",
+      "mcp__bluesec__get_alert",
+      "mcp__bluesec__get_entity",
+      "mcp__bluesec__get_relation",
+      "mcp__bluesec__get_ad_object_info",
+      "mcp__bluesec__search",
+      "mcp__bluesec__call_runtime_tool",
+      "mcp__bluesec__finish_investigation",
+      "mcp__bluesec__get_draft",
+      "mcp__ccd_session_mgmt__get_usage",
+      "mcp__ccd_session_mgmt__get_session"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "bluesec": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "bluesec1-mcp"
+      ],
+      "env": {
+        "GRPC_DNS_RESOLVER": "native"
+      }
+    }
+  }
+}

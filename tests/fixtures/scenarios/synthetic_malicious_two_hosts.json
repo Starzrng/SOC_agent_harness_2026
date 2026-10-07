@@ -1,0 +1,246 @@
+{
+  "name": "synthetic_malicious_two_hosts",
+  "note": "SYNTHETIC. One lateral-movement stage touches two hosts and two accounts: a compromised workstation session runs a remote service on a file server with a stolen admin credential, which dumps LSASS there. A materiality rule must keep both hosts and both accounts.",
+  "alert_text": {
+    "title": "Remote service executed an unsigned binary that accessed LSASS",
+    "severity": "high",
+    "host": "SRV-FILE-02",
+    "description": "A service started from ADMIN$ on SRV-FILE-02 launched an unsigned executable from C:\\Windows\\Temp that opened a handle to lsass.exe.",
+    "trigger_entities": [
+      "proc:remsvc-7720",
+      "host:SRV-FILE-02"
+    ]
+  },
+  "entities": {
+    "host:SRV-FILE-02": {
+      "type": "host",
+      "hostname": "SRV-FILE-02",
+      "role": "file server",
+      "ip": "10.0.10.22",
+      "domain": "corp.example"
+    },
+    "proc:remsvc-7720": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\remsvc.exe",
+      "cmdline": "C:\\Windows\\remsvc.exe",
+      "parent_image": "C:\\Windows\\System32\\services.exe",
+      "user": "NT AUTHORITY\\SYSTEM",
+      "integrity_level": "system",
+      "signed": true,
+      "signer": "Remote Admin Tools Inc."
+    },
+    "svc:remsvc": {
+      "type": "windows_service",
+      "service_name": "REMSVC",
+      "binary_path": "C:\\Windows\\remsvc.exe",
+      "start_type": "demand",
+      "installed_by_logon_id": "0x3F2A1"
+    },
+    "proc:dmp-8120": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\Temp\\wmsync.exe",
+      "cmdline": "C:\\Windows\\Temp\\wmsync.exe -o C:\\Windows\\Temp\\wm.bin",
+      "parent_image": "C:\\Windows\\remsvc.exe",
+      "user": "CORP\\adm.rivera",
+      "integrity_level": "high",
+      "signed": false,
+      "logon_id": "0x3F2A1"
+    },
+    "file:wmsync-exe": {
+      "type": "windows_file",
+      "path": "C:\\Windows\\Temp\\wmsync.exe",
+      "signed": false,
+      "sha256": "4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b"
+    },
+    "file:wm-bin": {
+      "type": "windows_file",
+      "path": "C:\\Windows\\Temp\\wm.bin",
+      "size_bytes": 48234496,
+      "header": "MDMP"
+    },
+    "proc:lsass-640": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\lsass.exe",
+      "user": "NT AUTHORITY\\SYSTEM",
+      "integrity_level": "system",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "user:adm.rivera": {
+      "type": "windows_user",
+      "username": "adm.rivera",
+      "domain": "CORP",
+      "account_type": "admin",
+      "group_memberships": [
+        "Server Admins"
+      ],
+      "usual_logon_hosts": [
+        "PAW-03"
+      ]
+    },
+    "host:WS-DEV-14": {
+      "type": "host",
+      "hostname": "WS-DEV-14",
+      "role": "workstation",
+      "ip": "10.0.20.54",
+      "domain": "corp.example"
+    },
+    "user:tom.baker": {
+      "type": "windows_user",
+      "username": "tom.baker",
+      "domain": "CORP",
+      "account_type": "user",
+      "department": "Engineering"
+    },
+    "proc:remexec-3301": {
+      "type": "windows_process",
+      "image_path": "C:\\Users\\tom.baker\\AppData\\Local\\Temp\\remexec.exe",
+      "cmdline": "remexec.exe \\\\SRV-FILE-02 -u CORP\\adm.rivera -p ******** -c C:\\Users\\tom.baker\\AppData\\Local\\Temp\\wmsync.exe",
+      "user": "CORP\\tom.baker",
+      "integrity_level": "medium",
+      "signed": true,
+      "signer": "Remote Admin Tools Inc."
+    },
+    "net:smb-ws-srv": {
+      "type": "network_connection",
+      "src_ip": "10.0.20.54",
+      "dst_ip": "10.0.10.22",
+      "dst_port": 445,
+      "protocol": "tcp",
+      "direction": "outbound"
+    }
+  },
+  "relations": {
+    "rel:services-remsvc": {
+      "type": "service_started_process",
+      "source": "svc:remsvc",
+      "target": "proc:remsvc-7720"
+    },
+    "rel:remsvc-dmp": {
+      "type": "win_process_create",
+      "source": "proc:remsvc-7720",
+      "target": "proc:dmp-8120"
+    },
+    "rel:dmp-image": {
+      "type": "executed_file",
+      "source": "proc:dmp-8120",
+      "target": "file:wmsync-exe"
+    },
+    "rel:dmp-lsass": {
+      "type": "opened_handle",
+      "source": "proc:dmp-8120",
+      "target": "proc:lsass-640",
+      "granted_access": "0x1410"
+    },
+    "rel:dmp-wrote-bin": {
+      "type": "wrote_file",
+      "source": "proc:dmp-8120",
+      "target": "file:wm-bin"
+    },
+    "rel:rivera-logon-srv": {
+      "type": "logged_on_to",
+      "source": "user:adm.rivera",
+      "target": "host:SRV-FILE-02",
+      "logon_type": 3,
+      "source_host": "WS-DEV-14",
+      "source_ip": "10.0.20.54",
+      "logon_id": "0x3F2A1"
+    },
+    "rel:rivera-runs-dmp": {
+      "type": "runs_process",
+      "source": "user:adm.rivera",
+      "target": "proc:dmp-8120"
+    },
+    "rel:tom-runs-remexec": {
+      "type": "runs_process",
+      "source": "user:tom.baker",
+      "target": "proc:remexec-3301"
+    },
+    "rel:remexec-conn": {
+      "type": "connected_to",
+      "source": "proc:remexec-3301",
+      "target": "net:smb-ws-srv"
+    },
+    "rel:remexec-copied": {
+      "type": "wrote_file",
+      "source": "proc:remexec-3301",
+      "target": "file:wmsync-exe",
+      "share": "ADMIN$"
+    },
+    "rel:remexec-created-svc": {
+      "type": "created_service",
+      "source": "proc:remexec-3301",
+      "target": "svc:remsvc"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "host:SRV-FILE-02",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "host:WS-DEV-14",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm.rivera",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:tom.baker",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:wmsync-exe",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "file:wm-bin",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc:dmp-8120",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc:remexec-3301",
+        "kind": "process_observed"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "host:SRV-FILE-02",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "host:WS-DEV-14",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm.rivera",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:tom.baker",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:wm-bin",
+        "kind": "file_to_delete"
+      }
+    ],
+    "must_see": [
+      "host:WS-DEV-14",
+      "proc:remexec-3301"
+    ],
+    "forbidden_artifacts": [],
+    "forbidden_kinds": [
+      {
+        "entity_id": "proc:lsass-640",
+        "kind": "file_to_delete"
+      }
+    ]
+  }
+}
