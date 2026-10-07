@@ -3,6 +3,8 @@ reproduced on invented data (no competition ids, answers or labels)."""
 
 import asyncio
 import json
+import shutil
+from pathlib import Path
 from typing import Any, cast
 
 from bluesec1_agent.catalog import argument_defaults, compact_catalog, scope_type_kinds
@@ -14,6 +16,8 @@ from bluesec1_agent.report_review import filter_report, repair_report, review_re
 from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_agent.transcript import TranscriptWriter
 from bluesec1_client import RemoteBenchmarkSession, TaskResult
+
+SCENARIOS = Path(__file__).parent / "fixtures" / "scenarios"
 
 PLANTED = json.dumps(
     {"id": "host:dc01", "type": "host", "properties": {"hostname": "DC01"}},
@@ -338,17 +342,22 @@ def test_the_compact_catalog_keeps_names_and_enums() -> None:
     assert argument_defaults(parameters)["sort_order"] == "ascending"
 
 
-def make_service() -> BluesecService:
-    return BluesecService(
-        settings_loader=lambda: RuntimeSettings(
-            scenario_runtime_token="unused-offline", agent_transcript_dir=""
-        )
-    )
+def make_service(scenario_dir: Path | None = None) -> BluesecService:
+    settings = RuntimeSettings(scenario_runtime_token="unused-offline", agent_transcript_dir="")
+    if scenario_dir is None:
+        return BluesecService(settings_loader=lambda: settings)
+    return BluesecService(settings_loader=lambda: settings, scenario_dir=scenario_dir)
 
 
-def test_search_scope_kind_is_inferred_and_half_filters_are_refused() -> None:
+def one_scenario(tmp_path: Path, name: str = "synthetic_malicious_macro_dropper") -> Path:
+    """A scenario directory with one known scenario, so a test does not depend on the queue."""
+    shutil.copy(SCENARIOS / f"{name}.json", tmp_path / f"{name}.json")
+    return tmp_path
+
+
+def test_search_scope_kind_is_inferred_and_half_filters_are_refused(tmp_path: Path) -> None:
     async def run() -> None:
-        service = make_service()
+        service = make_service(one_scenario(tmp_path))
         await service.start_run(OFFLINE_ARENA)
         task_id = (await service.lease_task())["task_id"]
         session = service.tasks[task_id].session
@@ -374,11 +383,11 @@ def test_search_scope_kind_is_inferred_and_half_filters_are_refused() -> None:
     asyncio.run(run())
 
 
-def test_nested_scope_and_time_window_reach_the_runtime() -> None:
+def test_nested_scope_and_time_window_reach_the_runtime(tmp_path: Path) -> None:
     """The catalog's own nested filter forms used to be dropped by the MCP tool silently."""
 
     async def run() -> None:
-        service = make_service()
+        service = make_service(one_scenario(tmp_path))
         await service.start_run(OFFLINE_ARENA)
         task_id = (await service.lease_task())["task_id"]
         session = service.tasks[task_id].session

@@ -9,12 +9,15 @@ prompt and injection resistance without spending tasks on the competition server
 - read tools require a `reasoning` argument; get_relation returns endpoint ids only;
 - finish_investigation takes one `submission` object (malicious: ir_artifacts, benign:
   legitimacy_evidence);
-- each call earns a shaping reward: +1 per newly opened key entity, -0.01 per call.
+- each call earns a shaping reward: +1 per newly opened key entity, -0.01 per call;
+- the task id is opaque (`public_task_id`): scenario names describe the case and its verdict,
+  and the investigator sees the task id.
 
 Scenario files keep a simpler format (entities and relations as flat dicts); this module
 converts them. Its scoring is a rough local proxy, not the official formula.
 """
 
+import hashlib
 import json
 from pathlib import Path
 from types import TracebackType
@@ -237,6 +240,19 @@ def load_scenario(path: str | Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+def public_task_id(name: str) -> str:
+    """The task id shown to the agent for a scenario: stable, and silent about its name."""
+    return "offline-" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:10]
+
+
+def scenario_for_task(task_id: str, directory: Path = DEFAULT_SCENARIO_DIR) -> Path | None:
+    """The scenario file behind a task id (traces recorded before 2026-10-07 used the name)."""
+    for path in sorted(directory.glob("*.json")):
+        if task_id in (path.stem, public_task_id(path.stem)):
+            return path
+    return None
+
+
 def report_ids(report: dict[str, Any]) -> set[str]:
     """Return the entity and relation ids cited by a submission (or a legacy report)."""
     body = report.get("submission") if isinstance(report.get("submission"), dict) else report
@@ -340,7 +356,7 @@ class MockSession:
             )
         )
         self.task = PublicTask(
-            task_id=scenario["name"],
+            task_id=public_task_id(scenario["name"]),
             observation={
                 "alert_text": self._alert_text,
                 "available_tools": self._catalog_text,

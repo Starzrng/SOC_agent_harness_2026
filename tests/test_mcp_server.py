@@ -13,10 +13,10 @@ from bluesec1_agent.mcp_server import (
     mcp,
 )
 from bluesec1_agent.mock_runtime import (
-    DEFAULT_SCENARIO_DIR,
     MOCK_TOOL_CATALOG,
     MockSession,
     load_scenario,
+    scenario_for_task,
 )
 from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_client import RemoteRunNotFoundError, RemoteUnavailableError
@@ -403,7 +403,7 @@ class FakeAttachedClient:
         self.closed = True
 
     def attach_task(self, task: object) -> MockSession:
-        session = MockSession(load_scenario(DEFAULT_SCENARIO_DIR / f"{task.task_id}.json"))
+        session = MockSession(load_scenario(scenario_for_task(task.task_id)))
         session.task = task  # the task as rebuilt from its trace
         return session
 

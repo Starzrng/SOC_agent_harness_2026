@@ -14,7 +14,12 @@ from bluesec1_agent.jev_shadow import (
     load_task_evidence,
     shadow_task,
 )
-from bluesec1_agent.mock_runtime import DEFAULT_SCENARIO_DIR, MockSession, load_scenario
+from bluesec1_agent.mock_runtime import (
+    DEFAULT_SCENARIO_DIR,
+    MockSession,
+    load_scenario,
+    public_task_id,
+)
 from bluesec1_agent.transcript import TranscriptWriter
 
 API_KEY = "test-key-not-real"
@@ -106,7 +111,7 @@ def record_macro_trace(tmp_path: Path) -> Path:
         )
 
     asyncio.run(investigate())
-    return tmp_path / f"{scenario['name']}.jsonl"
+    return tmp_path / f"{public_task_id(scenario['name'])}.jsonl"
 
 
 def test_trace_is_replayed_through_jev_without_the_report(tmp_path: Path) -> None:
