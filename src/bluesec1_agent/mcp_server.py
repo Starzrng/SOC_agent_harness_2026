@@ -33,6 +33,7 @@ from pydantic import BaseModel, ConfigDict
 from bluesec1_agent.evidence import EndpointTypes
 from bluesec1_agent.guarded_task import FINISH_TOOL, CallBudget, GuardedTask, fit_to_schema
 from bluesec1_agent.mock_runtime import DEFAULT_SCENARIO_DIR, MockBenchmarkClient
+from bluesec1_agent.report_review import BENIGN_REPORT_MODES
 from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_agent.transcript import TranscriptWriter, new_run_dir
 from bluesec1_client import (
@@ -354,6 +355,7 @@ class BluesecService:
                     "model_name": model_name or "claude-code",
                     "effort": effort,
                     "agent_name": settings.agent_name,
+                    "benign_report": settings.agent_benign_report,
                     "started_at": _now(),
                 }
                 (self.run_dir / RUN_INFO_FILE).write_text(
@@ -481,6 +483,7 @@ class BluesecService:
             transcript=TranscriptWriter(run_dir, session.task_id),
             trace=events,
             endpoint_types=self.endpoint_types,
+            benign_report=settings.agent_benign_report,
         )
 
     def _update_run_info(self, **fields: Any) -> None:
@@ -521,6 +524,7 @@ class BluesecService:
                     tool_denylist=tool_denylist(self._settings),
                     transcript=transcript,
                     endpoint_types=self.endpoint_types,
+                    benign_report=self._settings.agent_benign_report,
                 )
             except ValueError as exc:
                 await session.abort_task(error_message=str(exc))
@@ -674,10 +678,11 @@ class BluesecService:
         anchors: bool = True,
         report_filter: bool = True,
         read_bump: bool = False,
+        benign_report: str | None = None,
     ) -> dict[str, Any]:
         """Label a leased task with its investigator variant; optionally set its call budget,
         review mode (the first report becomes a draft for a second-pass reviewer), search
-        anchors in get_alert and the report filter."""
+        anchors in get_alert, the report filter and what it keeps in a benign report."""
         task = self.tasks.get(task_id)
         if task is None:
             return {"error": f"Unknown task_id {task_id!r}."}
@@ -685,6 +690,8 @@ class BluesecService:
             return {"error": "The task already has a report; tag it right after lease_task."}
         if not VARIANT_LABEL.fullmatch(variant):
             return {"error": "variant must be 1-16 letters, digits, '-' or '_'."}
+        if benign_report is not None and benign_report not in BENIGN_REPORT_MODES:
+            return {"error": f"benign_report must be one of {list(BENIGN_REPORT_MODES)}."}
         budget = None
         if soft_budget is not None or hard_budget is not None:
             if task.state.runtime_calls:
@@ -702,6 +709,7 @@ class BluesecService:
             anchors=anchors,
             report_filter=report_filter,
             read_bump=read_bump,
+            benign_report=benign_report,
         )
         return {
             "task_id": task_id,
@@ -711,6 +719,7 @@ class BluesecService:
             "anchors": anchors,
             "report_filter": report_filter,
             "read_bump": read_bump,
+            "benign_report": task.benign_report,
         }
 
     def get_draft(self, task_id: str) -> dict[str, Any]:
@@ -928,6 +937,7 @@ def tag_task(
     anchors: bool = True,
     report_filter: bool = True,
     read_bump: bool = False,
+    benign_report: Literal["full", "no_trigger", "evidence", "evidence_or_empty"] | None = None,
 ) -> dict[str, Any]:
     """ORCHESTRATOR ONLY. Label a leased task with the investigator variant (A/B tests).
 
@@ -941,10 +951,22 @@ def tag_task(
     also processes on the trigger's host outside the trigger's logon session (alert objects
     stay, at least 3 items remain) unless report_filter=false. With read_bump=true (off by
     default) the first get_entity on an id predicted to be a connection, process or script is
-    refused locally (the repeat runs).
+    refused locally (the repeat runs). benign_report sets what the report filter keeps in a
+    benign report: "evidence" = accounts, files and certificate templates only (at least one
+    item), "evidence_or_empty" = the same but empty when none of those types is cited,
+    "no_trigger" = everything but the alert's own objects, "full" = the report as written;
+    omitted = the run's setting (BLUESEC_BENIGN_REPORT, default "evidence_or_empty").
     """
     return service.tag_task(
-        task_id, variant, soft_budget, hard_budget, review, anchors, report_filter, read_bump
+        task_id,
+        variant,
+        soft_budget,
+        hard_budget,
+        review,
+        anchors,
+        report_filter,
+        read_bump,
+        benign_report,
     )
 
 

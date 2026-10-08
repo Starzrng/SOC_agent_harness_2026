@@ -118,15 +118,6 @@
     ],
     "critical": [
       {
-        "entity_id": "task:rotate-logs",
-        "fields_any": [
-          "action",
-          "run_as",
-          "trigger",
-          "author"
-        ]
-      },
-      {
         "entity_id": "user:svc_logrotate",
         "fields_any": [
           "account_type",

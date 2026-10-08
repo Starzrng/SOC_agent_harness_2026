@@ -309,14 +309,14 @@ def test_a_legitimate_alert_is_not_contaminated_by_an_independent_intrusion() ->
     assert failures == ["forbidden proc:rc-7781 cited"]
 
 
-def test_benign_evidence_must_cite_fields_that_prove_the_mechanism() -> None:
-    scenario = load_scenario(SCENARIOS / "synthetic_benign_remote_backup.json")
-    weak = [
-        {"anchor": "entity", "entity_id": "proc:console-3120", "property_fields": ["user"]},
-        {"anchor": "entity", "entity_id": "task:nightly", "property_fields": ["name"]},
-    ]
+def test_benign_evidence_must_cite_fields_that_prove_the_point() -> None:
+    # The acting account is the benign item the report filter keeps: its fields must prove it.
+    scenario = load_scenario(SCENARIOS / "synthetic_benign_task_launch_relation.json")
+    weak = [{"anchor": "entity", "entity_id": "user:svc_logrotate", "property_fields": ["domain"]}]
     failures = report_diff(report("benign", weak), scenario["expected"])["failures"]
-    assert len(failures) == 2 and all("none of" in failure for failure in failures)
+    assert len(failures) == 1 and "none of" in failures[0]
+    strong = [{**weak[0], "property_fields": ["account_type"]}]
+    assert report_diff(report("benign", strong), scenario["expected"])["failures"] == []
 
 
 def test_trimming_the_only_evidence_of_a_link_fails() -> None:

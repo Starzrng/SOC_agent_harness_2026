@@ -145,26 +145,10 @@
         "kind": "identity_observed"
       }
     ],
-    "critical": [
-      {
-        "entity_id": "proc:console-3120",
-        "fields_any": [
-          "cmdline",
-          "signer",
-          "image_path"
-        ]
-      },
-      {
-        "entity_id": "task:nightly",
-        "fields_any": [
-          "action",
-          "trigger",
-          "run_as"
-        ]
-      }
-    ],
+    "critical": [],
     "must_see": [
-      "proc:console-3120"
+      "proc:console-3120",
+      "task:nightly"
     ],
     "forbidden_artifacts": []
   },

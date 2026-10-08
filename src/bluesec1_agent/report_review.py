@@ -11,7 +11,8 @@ Nothing here judges the verdict or whether the report is complete: those calls s
 the investigator. `errors == []` only means the local checks passed.
 
 `filter_report` is separate from the checks: the harness applies it to the final report
-without a review round, dropping item types that cost more than they earn (FILTERED_TYPES).
+without a review round, dropping item types that cost more than they earn (FILTERED_TYPES),
+and from a benign report whatever its mode does not keep (BENIGN_REPORT_MODES).
 """
 
 from dataclasses import dataclass, field
@@ -79,6 +80,20 @@ FILTERED_TYPES = frozenset(
     {"network_connection", "powershell_script", "powershell_cmdlet_invocation"}
 )
 FILTER_FLOOR = 3
+# Benign reports. A correct verdict with an empty report earns half the task maximum and every
+# cited item that is not a key object costs a fixed amount, so an item pays only when its type
+# is credited more often than not. On training that held for accounts, files and certificate
+# templates; the alert's own trigger objects, processes, tasks, hosts and services were not
+# (scripts/report_floor.py). "evidence" keeps the credited types only, "no_trigger" drops the
+# alert's objects, "full" leaves a benign report as written. "evidence_or_empty" is "evidence"
+# without the floor and without built-in identities (SYSTEM and the like were never credited):
+# a report that cites nothing else is submitted empty, which earns more than keeping one item
+# that is not a key (the harness falls back to "evidence" when the catalog or the runtime does
+# not take an empty list).
+BENIGN_REPORT_MODES = ("full", "no_trigger", "evidence", "evidence_or_empty")
+BENIGN_KEEP_TYPES = USER_TYPES | FILE_TYPES | {"certificate_template"}
+# A benign report keeps at least this many items in the "evidence" and "no_trigger" modes.
+BENIGN_FLOOR = 1
 _MAX_FIELD_NAMES_SHOWN = 30
 _MAX_SEARCHES_SHOWN = 3
 
@@ -427,7 +442,7 @@ def repair_report(
 
 
 def filter_report(
-    body: dict[str, Any], index: EvidenceIndex
+    body: dict[str, Any], index: EvidenceIndex, benign_mode: str = "full"
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Drop cited relations and objects of FILTERED_TYPES before submission.
 
@@ -436,10 +451,17 @@ def filter_report(
     whose memory was read, a WMI or service host) are almost never key objects; a response
     acts on the attacker's own processes. Processes on other hosts stay.
 
-    Alert trigger objects stay. At least FILTER_FLOOR items remain: when the filter would go
-    below it, the candidates listed last are dropped first and the rest stay. Returns the
-    body and one record (section, position, id, category, type) per dropped item.
+    A benign report in the "evidence" and "evidence_or_empty" modes also loses every item
+    whose type is not in BENIGN_KEEP_TYPES, the alert's trigger objects included; in the
+    "no_trigger" mode it loses the trigger objects only.
+
+    Otherwise alert trigger objects stay. At least FILTER_FLOOR items remain (BENIGN_FLOOR for
+    a benign report in the "evidence" and "no_trigger" modes, none in "evidence_or_empty"):
+    when the filter would go below it, the candidates listed last are dropped first and the
+    rest stay. Returns the body and one record
+    (section, position, id, category, type) per dropped item.
     """
+    benign = body.get("verdict") == "benign" and benign_mode != "full"
     triggers = [seen for seen in index.objects.values() if seen.shown_by == "alert"]
     trigger_sessions = {seen.logon_id for seen in triggers if seen.logon_id}
     trigger_hosts = {seen.host_id for seen in triggers if seen.host_id}
@@ -456,10 +478,19 @@ def filter_report(
                 continue
             object_id = str(item.get("entity_id") or item.get("relation_id") or "")
             seen = index.objects.get(object_id)
-            if seen is not None and seen.shown_by == "alert":
-                continue
             category = index.category(object_id)
             object_type = seen.type if seen is not None else None
+            trigger = seen is not None and seen.shown_by == "alert"
+            reason = None
+            if benign and section == "legitimacy_evidence":
+                if benign_mode != "no_trigger" and object_type not in BENIGN_KEEP_TYPES:
+                    reason = "type not credited in benign reports"
+                elif benign_mode == "evidence_or_empty" and seen is not None and seen.builtin:
+                    reason = "built-in identity in a benign report"
+                elif benign_mode == "no_trigger" and trigger:
+                    reason = "alert object in a benign report"
+            if trigger and reason is None:
+                continue
             other_session = (
                 section == "ir_artifacts"
                 and seen is not None
@@ -469,7 +500,7 @@ def filter_report(
                 and seen.logon_id not in trigger_sessions
                 and seen.host_id in trigger_hosts
             )
-            if category == RELATION or object_type in FILTERED_TYPES or other_session:
+            if reason or category == RELATION or object_type in FILTERED_TYPES or other_session:
                 record = {
                     "section": section,
                     "position": position,
@@ -477,10 +508,15 @@ def filter_report(
                     "category": category,
                     "type": object_type,
                 }
-                if other_session:
+                if reason:
+                    record["reason"] = reason
+                elif other_session:
                     record["reason"] = "outside the trigger's logon session"
                 candidates.append((section, position, record))
-    allowed = max(0, total - FILTER_FLOOR)
+    floor = FILTER_FLOOR
+    if benign:
+        floor = 0 if benign_mode == "evidence_or_empty" else BENIGN_FLOOR
+    allowed = max(0, total - floor)
     dropped = candidates[len(candidates) - allowed :] if allowed < len(candidates) else candidates
     if not dropped:
         return body, []

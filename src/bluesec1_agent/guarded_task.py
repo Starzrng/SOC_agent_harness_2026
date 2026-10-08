@@ -36,6 +36,7 @@ from bluesec1_agent.guards import (
     sanitize_untrusted,
 )
 from bluesec1_agent.report_review import (
+    BENIGN_REPORT_MODES,
     Review,
     cited_ids,
     filter_report,
@@ -43,7 +44,12 @@ from bluesec1_agent.report_review import (
     review_report,
 )
 from bluesec1_agent.transcript import TranscriptWriter
-from bluesec1_client import RemoteBenchmarkSession, TaskResult, ToolCallResult
+from bluesec1_client import (
+    RemoteBenchmarkSession,
+    RemoteRequestError,
+    TaskResult,
+    ToolCallResult,
+)
 
 FINISH_TOOL = "finish_investigation"
 # Observation keys that repeat on every call and are not part of a tool result.
@@ -251,6 +257,7 @@ class GuardedTask:
         transcript: TranscriptWriter | None = None,
         trace: list[dict[str, Any]] | None = None,
         endpoint_types: EndpointTypes | None = None,
+        benign_report: str = "full",
     ) -> None:
         """Parse the catalog and record the task.
 
@@ -302,6 +309,10 @@ class GuardedTask:
         self.show_anchors = True
         # Drop low-value item types from the final report (tag_task can switch it off).
         self.report_filter = True
+        # What the report filter keeps in a benign report (report_review.BENIGN_REPORT_MODES).
+        if benign_report not in BENIGN_REPORT_MODES:
+            raise ValueError(f"benign_report must be one of {BENIGN_REPORT_MODES}")
+        self.benign_report = benign_report
         # Refuse the first get_entity on an id predicted to be a connection, process or script
         # (off by default since 2026-10-06; tag_task can switch it on); the repeat is executed.
         self.read_bump = False
@@ -376,9 +387,14 @@ class GuardedTask:
         anchors: bool = True,
         report_filter: bool = True,
         read_bump: bool = False,
+        benign_report: str | None = None,
     ) -> None:
         """Record the investigator variant, optionally its budget, review mode, anchors,
-        report filter and read bump."""
+        report filter, read bump and benign report mode (kept as it is when omitted)."""
+        if benign_report is not None:
+            if benign_report not in BENIGN_REPORT_MODES:
+                raise ValueError(f"benign_report must be one of {BENIGN_REPORT_MODES}")
+            self.benign_report = benign_report
         self.variant = variant
         if budget is not None:
             self.budget = budget
@@ -395,6 +411,7 @@ class GuardedTask:
             anchors=anchors,
             report_filter=report_filter,
             read_bump=read_bump,
+            benign_report=self.benign_report,
         )
 
     def budget_view(self) -> dict[str, Any]:
@@ -588,6 +605,8 @@ class GuardedTask:
                 self.show_anchors = event.get("anchors", True) is not False
                 self.report_filter = event.get("report_filter", True) is not False
                 self.read_bump = event.get("read_bump") is True
+                if event.get("benign_report") in BENIGN_REPORT_MODES:
+                    self.benign_report = event["benign_report"]
             elif kind == "bump":
                 self._bumped.add(str(event.get("entity_id")))
             elif kind == "tool" and event.get("cached"):
@@ -632,12 +651,33 @@ class GuardedTask:
             body, repairs = repair_report(body, review, self.index)
             arguments = {**arguments, "submission": body} if "submission" in arguments else body
         arguments = self._clean_report(arguments)
+        fallback: tuple[dict[str, Any], list[str]] | None = None
         if self.report_filter:
-            arguments, notes = self._filter_report(arguments)
+            filtered, notes, dropped = self._filter_report(arguments)
+            if self._emptied(arguments, filtered):
+                # Nothing cited is of a credited type: an empty list earns more than one item
+                # that is not a key. Keep the one-item report for a catalog or a runtime that
+                # does not take an empty list.
+                kept = self._filter_report(arguments, "evidence")
+                if self.review_mode or self.specs[FINISH_TOOL].validate(filtered):
+                    filtered, notes, dropped = kept
+                else:
+                    fallback = (kept[0], repairs + kept[1])
+            if dropped:
+                self.transcript.event(
+                    "report_filter", dropped=dropped, benign_report=self.benign_report
+                )
+            arguments = filtered
             repairs += notes
         if self.review_mode and self.draft is None:
             return self._save_draft(arguments, repairs)
-        return await self._submit(arguments, repairs)
+        return await self._submit(arguments, repairs, fallback)
+
+    @staticmethod
+    def _emptied(before: dict[str, Any], after: dict[str, Any]) -> bool:
+        """Whether the report filter left a benign report without any evidence item."""
+        was, now = report_body(before), report_body(after)
+        return bool(was.get("legitimacy_evidence")) and not now.get("legitimacy_evidence")
 
     def _save_draft(self, arguments: dict[str, Any], repairs: list[str]) -> dict[str, Any]:
         """Keep the first report for the reviewer instead of submitting it."""
@@ -687,9 +727,24 @@ class GuardedTask:
             self.transcript.event("fallback", reason="draft submitted unchanged")
             return await self._submit(self.draft, [])
 
-    async def _submit(self, arguments: dict[str, Any], repairs: list[str]) -> dict[str, Any]:
-        """Send the final report to the runtime."""
-        response = await self.session.call_tool(FINISH_TOOL, arguments)
+    async def _submit(
+        self,
+        arguments: dict[str, Any],
+        repairs: list[str],
+        fallback: tuple[dict[str, Any], list[str]] | None = None,
+    ) -> dict[str, Any]:
+        """Send the final report to the runtime.
+
+        `fallback` is the report to send instead when the runtime does not take this one (an
+        emptied benign report): it is submitted once, right away.
+        """
+        try:
+            response = await self.session.call_tool(FINISH_TOOL, arguments)
+        except RemoteRequestError as exc:
+            if fallback is None:
+                raise
+            self.transcript.event("fallback", reason=f"empty report refused: {exc}"[:300])
+            return await self._submit(*fallback)
         self.state.runtime_calls += 1
         self.transcript.event(
             "tool",
@@ -701,6 +756,9 @@ class GuardedTask:
         )
         if response.task_result is not None:
             return self._finished(response, arguments, repairs)
+        if fallback is not None:
+            self.transcript.event("fallback", reason="empty report not accepted")
+            return await self._submit(*fallback)
         result = runtime_result(response.info, response.observation)
         feedback = self._runtime_feedback(response, FINISH_TOOL, result)
         return {**feedback, "harness": {**feedback["harness"], "budget": self.budget_view()}}
@@ -799,19 +857,22 @@ class GuardedTask:
             return {**arguments, "submission": body}
         return body
 
-    def _filter_report(self, arguments: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-        """Apply the report filter; record what it dropped in the trace."""
-        body, dropped = filter_report(report_body(arguments), self.index)
+    def _filter_report(
+        self, arguments: dict[str, Any], mode: str | None = None
+    ) -> tuple[dict[str, Any], list[str], list[dict[str, Any]]]:
+        """Apply the report filter: the report, a note for the repairs and what was dropped."""
+        body, dropped = filter_report(
+            report_body(arguments), self.index, mode or self.benign_report
+        )
         if not dropped:
-            return arguments, []
-        self.transcript.event("report_filter", dropped=dropped)
+            return arguments, [], []
         counts = Counter(record["type"] or record["category"] or "unknown" for record in dropped)
         note = "report filter dropped " + ", ".join(
             f"{count} {name}" for name, count in sorted(counts.items())
         )
         if isinstance(arguments.get("submission"), dict):
-            return {**arguments, "submission": body}, [note]
-        return body, [note]
+            return {**arguments, "submission": body}, [note], dropped
+        return body, [note], dropped
 
     @staticmethod
     def _runtime_feedback(response: ToolCallResult, name: str, result: Any) -> dict[str, Any]:

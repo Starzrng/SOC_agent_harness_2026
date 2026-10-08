@@ -125,25 +125,10 @@
         "kind": "artifact_observed"
       }
     ],
-    "critical": [
-      {
-        "entity_id": "proc:ppagent-800",
-        "fields_any": [
-          "image_path",
-          "signer"
-        ]
-      },
-      {
-        "entity_id": "task:patch-scan",
-        "fields_any": [
-          "action",
-          "trigger",
-          "run_as"
-        ]
-      }
-    ],
+    "critical": [],
     "must_see": [
-      "proc:ppagent-800"
+      "proc:ppagent-800",
+      "task:patch-scan"
     ],
     "forbidden_artifacts": [
       "proc:rc-7781",

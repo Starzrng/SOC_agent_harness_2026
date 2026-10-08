@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
+
 from bluesec1_agent.catalog import argument_defaults, compact_catalog, scope_type_kinds
 from bluesec1_agent.evidence import EvidenceIndex
 from bluesec1_agent.guarded_task import CallBudget, GuardedTask
@@ -15,7 +17,12 @@ from bluesec1_agent.mock_runtime import MOCK_TOOL_CATALOG, MockSession, report_d
 from bluesec1_agent.report_review import filter_report, repair_report, review_report
 from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_agent.transcript import TranscriptWriter
-from bluesec1_client import RemoteBenchmarkSession, TaskResult
+from bluesec1_client import (
+    RemoteBenchmarkSession,
+    RemoteRequestError,
+    TaskResult,
+    ToolCallResult,
+)
 
 SCENARIOS = Path(__file__).parent / "fixtures" / "scenarios"
 
@@ -858,3 +865,243 @@ def test_host_wide_identities_are_not_a_trigger_session() -> None:
         "search", {"query": "0x3e7"}, {"results": session_rows(6), "next_page_id": 2}
     )
     assert index.window_gaps() == []
+
+
+# --- benign report modes ------------------------------------------------------------------------
+
+
+def benign_task(mode: str) -> tuple[GuardedTask, MockSession]:
+    """A task whose report filter runs in the given benign mode, with the chain already read."""
+    session = MockSession(scenario())
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report=mode)
+    read(task, "search", query="WINWORD", scope={"kind": "entity", "type": "windows_process"})
+    read(task, "search", query="alice", scope={"kind": "entity", "type": "windows_user"})
+    read(task, "search", query="upd.exe", scope={"kind": "entity", "type": "windows_file"})
+    return task, session
+
+
+def evidence(object_id: str, field: str) -> dict[str, Any]:
+    return {"anchor": "entity", "entity_id": object_id, "property_fields": [field]}
+
+
+CHAIN = (
+    evidence("proc:ps", "cmdline"),  # the alert's trigger
+    evidence("proc:word", "signer"),
+    evidence("user:alice", "username"),
+    evidence("host:ws01", "hostname"),  # the alert's host
+    evidence("file:payload", "path"),
+)
+
+
+def test_the_evidence_mode_keeps_only_the_credited_types_of_a_benign_report() -> None:
+    task, session = benign_task("evidence")
+
+    finished = submit(task, benign(*CHAIN))
+
+    assert finished["status"] == "finished"
+    assert submitted_ids(session) == ["user:alice", "file:payload"]
+    assert "report filter dropped" in finished["harness"]["repairs"][0]
+
+
+def test_the_no_trigger_mode_drops_only_the_alert_objects_of_a_benign_report() -> None:
+    task, session = benign_task("no_trigger")
+
+    submit(task, benign(*CHAIN))
+
+    assert submitted_ids(session) == ["proc:word", "user:alice", "file:payload"]
+
+
+def test_the_full_mode_leaves_a_benign_report_as_written() -> None:
+    task, session = benign_task("full")
+
+    submit(task, benign(*CHAIN))
+
+    assert len(submitted_ids(session)) == len(CHAIN)
+
+
+def test_a_benign_report_with_no_credited_type_keeps_its_first_item() -> None:
+    task, session = benign_task("evidence")
+
+    submit(task, benign(evidence("proc:word", "signer"), evidence("host:ws01", "hostname")))
+
+    assert submitted_ids(session) == ["proc:word"]
+
+
+def test_the_benign_mode_does_not_touch_a_malicious_report() -> None:
+    task, session = benign_task("evidence")
+    report = malicious(
+        ("proc:ps", "process_observed"),
+        ("proc:word", "process_observed"),
+        ("host:ws01", "host_to_isolate"),
+        ("user:alice", "identity_to_rotate"),
+        ("file:payload", "file_to_delete"),
+    )
+
+    submit(task, report)
+
+    assert len(submitted_ids(session)) == 5
+
+
+def test_the_benign_mode_is_validated_tagged_and_restored_from_the_trace() -> None:
+    session = MockSession(scenario())
+    with pytest.raises(ValueError, match="benign_report"):
+        GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="everything")
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence")
+    task.tag("A")
+    assert task.benign_report == "evidence"  # an omitted mode keeps the run's setting
+    task.tag("A", benign_report="no_trigger")
+    assert task.benign_report == "no_trigger"
+    with pytest.raises(ValueError, match="benign_report"):
+        task.tag("A", benign_report="everything")
+
+    tag = {"kind": "tag", "variant": "A", "soft_budget": 16, "hard_budget": 20}
+    resumed = GuardedTask(
+        cast(RemoteBenchmarkSession, MockSession(scenario())),
+        trace=[{**tag, "benign_report": "no_trigger"}],
+        benign_report="evidence",
+    )
+    assert resumed.benign_report == "no_trigger"
+
+
+def test_the_service_gives_tasks_the_configured_benign_mode(tmp_path: Path) -> None:
+    async def run(mode: str | None) -> str:
+        extra = {"agent_benign_report": mode} if mode else {}
+        settings = RuntimeSettings(
+            scenario_runtime_token="unused-offline", agent_transcript_dir="", **extra
+        )
+        service = BluesecService(
+            settings_loader=lambda: settings, scenario_dir=one_scenario(tmp_path)
+        )
+        await service.start_run(OFFLINE_ARENA)
+        task_id = (await service.lease_task())["task_id"]
+        return service.tasks[task_id].benign_report
+
+    assert asyncio.run(run(None)) == "evidence_or_empty"
+    assert asyncio.run(run("full")) == "full"
+
+
+# --- an empty benign report and its fallbacks -----------------------------------------------------
+
+NOT_CREDITED = (evidence("proc:word", "signer"), evidence("host:ws01", "hostname"))
+
+
+def test_a_benign_report_with_no_credited_type_is_submitted_empty() -> None:
+    task, session = benign_task("evidence_or_empty")
+
+    finished = submit(task, benign(*NOT_CREDITED))
+
+    assert finished["status"] == "finished"
+    assert submitted_ids(session) == []
+    assert task.state.runtime_calls == 4  # three reads and one finish
+
+
+def test_the_empty_mode_keeps_the_credited_items_like_the_evidence_mode() -> None:
+    task, session = benign_task("evidence_or_empty")
+
+    submit(task, benign(*CHAIN))
+
+    assert submitted_ids(session) == ["user:alice", "file:payload"]
+
+
+def test_a_catalog_that_forbids_an_empty_list_gets_the_one_item_report() -> None:
+    session = MockSession(scenario())
+    catalog = json.loads(session.task.observation["available_tools"])
+    finish = next(tool for tool in catalog if tool["name"] == "finish_investigation")
+
+    def require_an_item(schema: Any) -> None:
+        if isinstance(schema, dict):
+            if isinstance(schema.get("legitimacy_evidence"), dict):
+                schema["legitimacy_evidence"]["minItems"] = 1
+            for value in schema.values():
+                require_an_item(value)
+        elif isinstance(schema, list):
+            for value in schema:
+                require_an_item(value)
+
+    require_an_item(finish["parameters"])
+    assert '"minItems": 1' in json.dumps(finish["parameters"])
+    session.task.observation["available_tools"] = json.dumps(catalog)
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence_or_empty")
+    read(task, "search", query="WINWORD", scope={"kind": "entity", "type": "windows_process"})
+
+    finished = submit(task, benign(*NOT_CREDITED))
+
+    assert finished["status"] == "finished"
+    assert submitted_ids(session) == ["proc:word"]
+    assert task.state.runtime_calls == 2  # one read and one finish: nothing was sent twice
+
+
+class RefusesEmptyReports(MockSession):
+    """A runtime that answers an empty evidence list with an error instead of ending the task."""
+
+    def __init__(self, scenario: dict[str, Any], *, raises: bool = False) -> None:
+        super().__init__(scenario)
+        self.raises = raises
+        self.refused = 0
+
+    async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> ToolCallResult:
+        body = arguments.get("submission") or {}
+        if tool_name == "finish_investigation" and body.get("legitimacy_evidence") == []:
+            self.refused += 1
+            if self.raises:
+                raise RemoteRequestError("legitimacy_evidence must not be empty")
+            return self._response(tool_name, "error", "legitimacy_evidence must not be empty", 0.0)
+        return await super().call_tool(tool_name, arguments)
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_a_runtime_that_refuses_an_empty_list_gets_the_one_item_report(raises: bool) -> None:
+    session = RefusesEmptyReports(scenario(), raises=raises)
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence_or_empty")
+    read(task, "search", query="WINWORD", scope={"kind": "entity", "type": "windows_process"})
+
+    finished = submit(task, benign(*NOT_CREDITED))
+
+    assert session.refused == 1
+    assert finished["status"] == "finished"
+    assert submitted_ids(session) == ["proc:word"]
+
+
+def test_a_malicious_report_is_never_emptied() -> None:
+    task, session = benign_task("evidence_or_empty")
+
+    submit(task, malicious(("proc:word", "process_observed"), ("host:ws01", "host_to_isolate")))
+
+    assert len(submitted_ids(session)) == 2
+
+
+def test_a_built_in_identity_is_not_kept_in_a_benign_report() -> None:
+    system = {"type": "windows_user", "username": "SYSTEM", "domain": "NT AUTHORITY"}
+    system["sid"] = "S-1-5-18"
+    session = MockSession(scenario({"user:system": system}))
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence_or_empty")
+    read(task, "search", query="S-1-5-18", scope={"kind": "entity", "type": "windows_user"})
+    read(task, "search", query="alice", scope={"kind": "entity", "type": "windows_user"})
+    assert task.index.objects["user:system"].builtin
+    assert not task.index.objects["user:alice"].builtin
+
+    submit(task, benign(evidence("user:system", "username"), evidence("user:alice", "username")))
+
+    assert submitted_ids(session) == ["user:alice"]
+
+
+def test_a_benign_report_of_a_built_in_identity_alone_is_submitted_empty() -> None:
+    system = {"type": "windows_user", "username": "SYSTEM", "account_type": "builtin"}
+    session = MockSession(scenario({"user:system": system}))
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence_or_empty")
+    read(task, "search", query="SYSTEM", scope={"kind": "entity", "type": "windows_user"})
+
+    submit(task, benign(evidence("user:system", "username")))
+
+    assert submitted_ids(session) == []
+
+
+def test_the_evidence_mode_still_keeps_a_built_in_identity() -> None:
+    system = {"type": "windows_user", "username": "SYSTEM", "account_type": "builtin"}
+    session = MockSession(scenario({"user:system": system}))
+    task = GuardedTask(cast(RemoteBenchmarkSession, session), benign_report="evidence")
+    read(task, "search", query="SYSTEM", scope={"kind": "entity", "type": "windows_user"})
+
+    submit(task, benign(evidence("user:system", "username")))
+
+    assert submitted_ids(session) == ["user:system"]

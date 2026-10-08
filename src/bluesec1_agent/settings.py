@@ -82,6 +82,14 @@ class RuntimeSettings(BaseSettings):
         default="",
         validation_alias="BLUESEC_TOOL_DENYLIST",
     )
+    # What the report filter keeps in a benign report: "evidence" = accounts, files and
+    # certificate templates only, at least one item; "evidence_or_empty" = the same, but a
+    # report with none of those types is submitted empty; "no_trigger" = everything but the
+    # alert's own objects; "full" = the report as written (report_review.BENIGN_REPORT_MODES).
+    agent_benign_report: Literal["full", "no_trigger", "evidence", "evidence_or_empty"] = Field(
+        default="evidence_or_empty",
+        validation_alias="BLUESEC_BENIGN_REPORT",
+    )
 
 
 class JevSettings(BaseSettings):

@@ -22,17 +22,18 @@ from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_client import RemoteRunNotFoundError, RemoteUnavailableError
 
 
-def make_service() -> BluesecService:
+def make_service(**settings: str) -> BluesecService:
     return BluesecService(
         settings_loader=lambda: RuntimeSettings(
-            scenario_runtime_token="unused-offline", agent_transcript_dir=""
+            scenario_runtime_token="unused-offline", agent_transcript_dir="", **settings
         )
     )
 
 
 def test_offline_run_lifecycle_through_the_service() -> None:
     async def scenario() -> None:
-        service = make_service()
+        # The report's shape is under test here, not what the benign filter keeps of it.
+        service = make_service(agent_benign_report="full")
         assert "error" in await service.lease_task()
 
         opened = await service.start_run(OFFLINE_ARENA)
@@ -135,7 +136,11 @@ def test_tasks_carry_their_investigator_variant() -> None:
             "anchors": True,
             "report_filter": True,
             "read_bump": False,
+            "benign_report": "evidence_or_empty",
         }
+        assert "error" in service.tag_task(task_id, "B", benign_report="everything")
+        assert service.tag_task(task_id, "B", benign_report="full")["benign_report"] == "full"
+        assert service.tasks[task_id].benign_report == "full"
         assert "16" in service.get_alert(task_id)["harness"]["budget"]["advice"]
 
         trigger = service.get_alert(task_id)["alert"]["alert_text"]["trigger_entities"][0]["id"]

@@ -411,15 +411,6 @@
     ],
     "critical": [
       {
-        "entity_id": "proc:wsmprov-jump-4410",
-        "fields_any": [
-          "user",
-          "logon_id",
-          "cmdline",
-          "parent_image"
-        ]
-      },
-      {
         "entity_id": "user:adm-sergey.v",
         "fields_any": [
           "account_type",

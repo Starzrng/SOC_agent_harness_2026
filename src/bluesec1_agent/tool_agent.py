@@ -170,6 +170,8 @@ class AgentLimits:
     max_parallel_calls: int = 4
     extra_llm_turns: int = 15
     concurrency: int = 1
+    # What the report filter keeps in a benign report (report_review.BENIGN_REPORT_MODES).
+    benign_report: str = "evidence_or_empty"
 
 
 class ToolCallingAgent:
@@ -257,6 +259,7 @@ class ToolCallingAgent:
                 budget=self.budget,
                 tool_denylist=self.tool_denylist,
                 transcript=transcript,
+                benign_report=self.limits.benign_report,
             )
             result = await self._investigate(task)
         except Exception as exc:

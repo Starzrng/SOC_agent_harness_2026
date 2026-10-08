@@ -81,6 +81,7 @@ async def run(args: argparse.Namespace) -> None:
                 hard_call_budget=settings.agent_hard_call_budget,
                 max_parallel_calls=settings.agent_max_parallel_calls,
                 concurrency=settings.agent_concurrency,
+                benign_report=settings.agent_benign_report,
             ),
             transcript_dir=settings.agent_transcript_dir,
             tool_denylist={

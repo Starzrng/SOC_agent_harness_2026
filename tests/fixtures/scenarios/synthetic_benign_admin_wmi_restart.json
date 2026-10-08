@@ -431,15 +431,6 @@
     ],
     "critical": [
       {
-        "entity_id": "proc:cmd-app12-7731",
-        "fields_any": [
-          "cmdline",
-          "parent_image",
-          "user",
-          "logon_id"
-        ]
-      },
-      {
         "entity_id": "user:adm-ivan.t",
         "fields_any": [
           "account_type",

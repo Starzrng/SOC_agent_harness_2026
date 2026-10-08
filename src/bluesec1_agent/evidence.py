@@ -142,6 +142,22 @@ _MAX_ROW_TIMES = 50
 _HOST_WIDE_IDENTITIES = frozenset({"system", "localsystem", "0x3e7", "0x3e4", "0x3e5"})
 
 
+# Identities that exist on every Windows host (SYSTEM, the service identities, anonymous logon,
+# the window-manager and font-driver accounts): nobody's role or restriction, so never the
+# account that proves an action legitimate.
+_BUILTIN_SID = re.compile(r"S-1-5-(18|19|20|7)|S-1-5-(90|96)-[0-9-]+", re.IGNORECASE)
+
+
+def builtin_identity(properties: dict[str, Any]) -> bool:
+    """Whether an account object's properties describe a built-in identity."""
+    sid = properties.get("sid")
+    if isinstance(sid, str) and _BUILTIN_SID.fullmatch(sid.strip()):
+        return True
+    if str(properties.get("account_type") or "").strip().lower() == "builtin":
+        return True
+    return str(properties.get("domain") or "").strip().lower() == "nt authority"
+
+
 def _parse_time(value: Any, end_of_day: bool = False) -> datetime | None:
     """An ISO 8601 time (UTC when no offset is given) or a UTC calendar day, else None."""
     if not isinstance(value, str):
@@ -223,6 +239,8 @@ class SeenObject:
     # compares them with the alert's trigger.
     host_id: str | None = None
     logon_id: str | None = None
+    # An account object of a built-in identity (SYSTEM, anonymous logon, ...).
+    builtin: bool = False
 
     def relation_fields(self) -> set[str]:
         """All property names of a relation, across its property namespaces."""
@@ -544,6 +562,8 @@ class EvidenceIndex:
             logon_id = properties.get("logon_id")
             if isinstance(logon_id, str) and logon_id:
                 seen.logon_id = logon_id
+            if object_type.endswith("_user") and builtin_identity(properties):
+                seen.builtin = True
 
         if category == RELATION:
             for namespace in RELATION_NAMESPACES:

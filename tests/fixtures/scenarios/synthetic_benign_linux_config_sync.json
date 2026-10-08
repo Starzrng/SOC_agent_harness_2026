@@ -340,27 +340,7 @@
         "kind": "other"
       }
     ],
-    "critical": [
-      {
-        "entity_id": "proc:pull-web03-20411",
-        "fields_any": [
-          "cmdline",
-          "cgroup",
-          "parent_exe",
-          "user"
-        ]
-      },
-      {
-        "entity_id": "unit:cfgsync-service-web03",
-        "fields_any": [
-          "exec_start",
-          "unit_file",
-          "triggered_by",
-          "name",
-          "run_as"
-        ]
-      }
-    ],
+    "critical": [],
     "must_see": [
       "unit:cfgsync-service-web03"
     ],
