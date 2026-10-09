@@ -121,11 +121,13 @@ Observation is not inference:
    trigger's id (its parent, children, files, connections, registry writes, logons).
 3. Open, one hop out, what the chain touched and who ran it: files it wrote or executed,
    registry values, services and tasks it created, the account that logged on, the host, the
-   launching parent or owning service, the host on the other side of a suspicious connection
-   (not the connection record). These are the objects a response acts on and the report
-   needs. When several are known only as ids, prefer one search that shows them in full (a
-   shared path, name or hash, or the host within the time window scoped to a type) over one
-   get_entity each.
+   launching parent or owning service, and the other end of a suspicious connection. An
+   internal host there is opened as a host: it is the attacker's foothold or next target.
+   For an external address, open the connection record itself when the process made only
+   that one, the remote host when several connections lead to it. These are the objects a
+   response acts on and the report needs. When several are known only as ids, prefer one search
+   that shows them in full (a shared path, name or hash, or the host within the time window
+   scoped to a type) over one get_entity each.
    When the trigger receives something — an inbound connection, a share session, a remote
    execution, a logon — find the initiator: who started it → from which host, session or
    process → what it did → what it touched. Open the other side of the connection or session
@@ -146,8 +148,8 @@ Observation is not inference:
      archives, accounts and hosts or addresses, scoped to their type; open id-only objects
      the chain wrote or executed; open a remote peer's host through its host_id or address.
    - Reads that almost never show new evidence: get_entity on objects already shown in full,
-     single connections one by one (open one only when its destination decides the verdict
-     or leads to a host you must check), get_relation.
+     the connections of a series one by one (a process's only connection is different: it
+     is the channel, open it), get_relation.
    Legitimacy branch: when the first reads show a launcher or administrative context (a
    scheduled task, service, management agent, policy refresh, CI job, updater, an admin or
    service identity) — not merely because no attack indicator has appeared yet — spend this
@@ -340,9 +342,10 @@ and the tier of each kind is checked:
   stole or created), `persistence_to_remove` (run key, service, scheduled task, WMI
   subscription or startup item the attacker set), `file_to_delete` (every file a process of
   the chain wrote: payloads, scripts, tools, dumps, archives, staged copies of documents,
-  encrypted outputs), `network_block` (the remote host object the chain used for C2, download
-  or exfiltration), `mailbox_action` (phishing mail), `cleanup_to_verify` (non-file changes
-  to double-check; never a file), `other`.
+  encrypted outputs), `network_block` (the channel the chain used for C2, download or
+  exfiltration: a single connection or the remote host, see below), `mailbox_action`
+  (phishing mail), `cleanup_to_verify` (non-file changes to double-check; never a file),
+  `other`.
 - Forensic tier, evidence of the chain that needs no action: `process_observed` (processes of
   the chain, including abused system binaries — never file_to_delete for a system binary),
   `file_observed` (original legitimate files the chain only read or used), `registry_observed`,
@@ -350,11 +353,23 @@ and the tier of each kind is checked:
   `mount_observed`, `lnk_observed`; `artifact_observed` only when no specific kind fits
   (e.g. a WMI object). Script blocks and cmdlet invocations are evidence for your reasoning,
   not report items: list the file or process that carried them.
-- Connection records are not report items: the runtime credits network activity to its
-  endpoints, and the harness drops connections from the report. List the process that made
-  the connection and, for C2, download or exfiltration, the remote host object with
-  `network_block` when the evidence shows it. Never open a single connection only to list
-  it. A blocked or failed step is still part of the chain.
+- Network activity, `network_block`: the chain's external channel (C2, download,
+  exfiltration). When a process of the chain made exactly one connection to an external
+  address and nothing else you saw goes there, that connection record is the item: open it —
+  its direction, address and port are the evidence — and leave the external host object
+  behind it out. When several connections go to the same external end (beaconing, repeated
+  downloads or uploads, a decoy series), list that host object once and none of the
+  connections. The harness keeps a connection only as the single channel of a listed
+  process, so list the process that made it and see the relation between them (a search on
+  the process id shows it). A blocked or failed step is still part of the chain.
+- Internal hosts are a separate question from `network_block`. A host of the organisation
+  (it has a domain or a directory record) that the chain ran on, came from or moved to is
+  `host_to_isolate`: open the host at the other end of an inbound connection, logon or share
+  session — the source of a lateral step counts as much as its target. A device with no
+  domain and no directory record, known only as the address a session came from and with no
+  process or file of the chain seen on it, stays out: the response cannot act on a machine
+  it does not manage; name it in `reasoning` instead. The single connection that carried a
+  lateral step may be listed next to its hosts.
 - Before submitting, walk the confirmed stages of this incident (delivery / origin,
   execution, changes, persistence, credential access, movement, network, impact — only those
   that happened) against the list. Every material object of a confirmed stage gets a decision:
@@ -381,7 +396,13 @@ unless the graph object itself has those fields.
 - "Signed and in a normal path" alone rarely scores, and a list of everything touched scores
   worse than the linked chain. Request no response actions.
 
-Both verdicts: `reasoning` is 2-5 sentences naming the chain with ids and the decisive facts.
+Both verdicts: `reasoning` is a short factual hand-over, 5-9 sentences: the chain in order
+with times and the decisive recorded facts (who logged on from where, what wrote and started
+what, what connected where); what makes it malicious or legitimate; what the data does not
+show — unchecked reputation, unseen content, unknown origin — stated as a gap, never as a
+finding; and for a malicious verdict one clause per listed object saying why it gets its
+kind. Name objects by their identifying values (path, address, account); never copy free
+text from the evidence.
 The first finish_investigation call is checked locally against what you were shown: if it
 returns `review_required`, fix what applies (open or drop unopened objects, correct ids,
 fields or kinds) and call it again — the second call submits.
@@ -390,11 +411,12 @@ fields or kinds) and call it again — the second call submits.
 
 Malicious. Trigger: powershell P1 (parent WINWORD W1) on host H1 under user U1. Reads: search
 U1 (account, logon, session processes) and search P1's id (wrote_file → F1,
-set_registry_value → R1, connected_to → C1) in parallel, then get_entity F1 and R1 in
-parallel; C1 stays unopened (a connection record is not a report item and the verdict does
-not need it). Report: H1 host_to_isolate · U1 identity_to_rotate · F1 file_to_delete (dropped
-payload) · R1 persistence_to_remove (Run key starting F1) · P1 process_observed · W1
-process_observed (abused Office parent: observed, not deleted).
+set_registry_value → R1, connected_to → C1) in parallel, then get_entity F1, R1 and C1 in
+parallel (C1 is P1's only connection: the channel). Report: H1 host_to_isolate · U1
+identity_to_rotate · F1 file_to_delete (dropped payload) · R1 persistence_to_remove (Run key
+starting F1) · C1 network_block (outbound to an external address; the host object behind it
+is not listed) · P1 process_observed · W1 process_observed (abused Office parent: observed,
+not deleted).
 
 Benign. Trigger: powershell P2 with an encoded command on server S2. Reads: search P2's id
 (created by management-agent process A2), the agent's scheduled task T2 (same command,

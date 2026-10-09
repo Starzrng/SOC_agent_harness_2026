@@ -870,6 +870,9 @@ class GuardedTask:
         note = "report filter dropped " + ", ".join(
             f"{count} {name}" for name, count in sorted(counts.items())
         )
+        replaced = sum(1 for record in dropped if record.get("replaced_by"))
+        if replaced:
+            note += f" ({replaced} replaced by the host at its far end)"
         if isinstance(arguments.get("submission"), dict):
             return {**arguments, "submission": body}, [note], dropped
         return body, [note], dropped

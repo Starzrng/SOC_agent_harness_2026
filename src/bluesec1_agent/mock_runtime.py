@@ -27,6 +27,9 @@ from uuid import uuid4
 from bluesec1_client import PublicTask, RemoteRun, TaskResult, ToolCallResult
 
 DEFAULT_SCENARIO_DIR = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "scenarios"
+# Reference tasks published by the organisers, kept in the runtime's own export format
+# (`scripts/import_reference_task.py`). Local only: the directory is not part of any export.
+REFERENCE_TASK_DIR = Path(__file__).resolve().parents[2] / "reference_tasks"
 PAGE_SIZE = 10
 CALL_REWARD = -0.01
 
@@ -245,9 +248,17 @@ def public_task_id(name: str) -> str:
     return "offline-" + hashlib.sha256(name.encode("utf-8")).hexdigest()[:10]
 
 
+def scenario_paths(directory: Path = DEFAULT_SCENARIO_DIR) -> list[Path]:
+    """Scenario files of an offline run: the synthetic ones, then the reference tasks."""
+    paths = sorted(directory.glob("*.json"))
+    if directory == DEFAULT_SCENARIO_DIR and REFERENCE_TASK_DIR.is_dir():
+        paths += sorted(REFERENCE_TASK_DIR.glob("*.json"))
+    return paths
+
+
 def scenario_for_task(task_id: str, directory: Path = DEFAULT_SCENARIO_DIR) -> Path | None:
     """The scenario file behind a task id (traces recorded before 2026-10-07 used the name)."""
-    for path in sorted(directory.glob("*.json")):
+    for path in scenario_paths(directory):
         if task_id in (path.stem, public_task_id(path.stem)):
             return path
     return None
@@ -554,6 +565,100 @@ class MockSession:
         return wrong_verdict or bool(report_ids(self.report) & forbidden)
 
 
+def _ad_objects(context: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Directory objects of an exported scenario, with the references the live tool resolves."""
+    directory = context.get("ad_directory") or {}
+    found: dict[str, dict[str, Any]] = {}
+    for collection in ("accounts", "computers", "groups", "ds_objects"):
+        for entry in directory.get(collection) or []:
+            if isinstance(entry, dict) and isinstance(entry.get("id"), str):
+                found[entry["id"]] = {key: value for key, value in entry.items() if key != "id"}
+
+    def brief(object_id: str) -> dict[str, Any]:
+        entry = found.get(object_id) or {}
+        name = entry.get("name") or entry.get("sam_account_name")
+        return {"id": object_id, "kind": entry.get("kind"), "name": name}
+
+    for entry in found.values():
+        if "member_of_ids" in entry:
+            entry["member_of"] = [brief(group_id) for group_id in entry["member_of_ids"] or []]
+        if "manager_id" in entry:
+            entry["manager"] = brief(entry["manager_id"]) if entry["manager_id"] else None
+    return found
+
+
+class NativeSession(MockSession):
+    """Serves a scenario kept in the runtime's export format, objects passed through as is.
+
+    Used for the organisers' reference tasks: `native` holds the export (`entities`,
+    `relations`, `context`), `alert` the alert as the task shows it. Search matches a
+    substring of an entity's id or properties and of a relation's id, endpoints or property
+    blocks; time windows are ignored, as in the synthetic scenarios.
+    """
+
+    def __init__(self, scenario: dict[str, Any]) -> None:
+        """Index the export by id and build the public task."""
+        native = scenario["native"]
+        triggers = [entity["id"] for entity in scenario["alert"].get("trigger_entities") or []]
+        super().__init__(
+            {
+                **scenario,
+                "alert_text": {"trigger_entities": triggers},
+                "entities": {entity["id"]: entity for entity in native["entities"]},
+                "relations": {
+                    relation["id"]: {
+                        **relation,
+                        "source": relation["source_id"],
+                        "target": relation["target_id"],
+                    }
+                    for relation in native["relations"]
+                },
+                "ad_objects": _ad_objects(native.get("context") or {}),
+            }
+        )
+
+    def _alert(self) -> dict[str, Any]:
+        return dict(self.scenario["alert"])
+
+    def _entity(self, entity_id: str) -> dict[str, Any]:
+        return dict(self._entities[entity_id])
+
+    def _relation(self, relation_id: str) -> dict[str, Any]:
+        data = self._relations[relation_id]
+        return {key: value for key, value in data.items() if key not in ("source", "target")}
+
+    def _search(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        query = str(arguments.get("query", "")).lower()
+        scope = arguments.get("scope") or {}
+        hits: list[dict[str, Any]] = []
+        if scope.get("kind") in (None, "entity"):
+            for entity_id, data in self._entities.items():
+                if scope.get("type") not in (None, data.get("type")):
+                    continue
+                text = json.dumps(data.get("properties") or {}, ensure_ascii=False).lower()
+                if query in entity_id.lower() or query in text:
+                    hits.append({"kind": "entity", **self._entity(entity_id)})
+        if scope.get("kind") in (None, "relation"):
+            for relation_id, data in self._relations.items():
+                if scope.get("type") not in (None, data.get("type")):
+                    continue
+                relation = self._relation(relation_id)
+                attributes = {
+                    key: value
+                    for key, value in relation.items()
+                    if key not in ("type", "log_sources")
+                }
+                if query in json.dumps(attributes, ensure_ascii=False).lower():
+                    hits.append({"kind": "relation", **relation})
+        page = int(arguments.get("page_id") or 1)
+        start = (page - 1) * PAGE_SIZE
+        return {
+            "results": hits[start : start + PAGE_SIZE],
+            "current_page_id": page,
+            "next_page_id": page + 1 if len(hits) > start + PAGE_SIZE else None,
+        }
+
+
 class MockBenchmarkClient:
     """Client-compatible object that serves scenario files as a task queue."""
 
@@ -576,4 +681,7 @@ class MockBenchmarkClient:
 
     async def start_task(self) -> MockSession | None:
         """Lease the next scenario, or `None` when the queue is empty."""
-        return MockSession(self._queue.pop(0)) if self._queue else None
+        if not self._queue:
+            return None
+        scenario = self._queue.pop(0)
+        return NativeSession(scenario) if "native" in scenario else MockSession(scenario)

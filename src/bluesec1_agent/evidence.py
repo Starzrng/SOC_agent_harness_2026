@@ -11,6 +11,7 @@ An id is in one of three states: shown in full (type and properties visible), re
 mentioned inside evidence text (the harness's known-values set, not this index).
 """
 
+import ipaddress
 import json
 import re
 from collections import Counter
@@ -28,6 +29,34 @@ AD_OBJECT = "ad_object"
 RELATION_NAMESPACES = ("logon_properties", "access_properties")
 # Tools whose results are indexed and whose repeats are pure reads.
 READ_TOOLS = frozenset({"search", "get_entity", "get_relation", "get_ad_object_info"})
+CONNECTION_TYPE = "network_connection"
+# Relations from a process to a connection it made or accepted.
+CONNECTION_LINKS = frozenset({"connected_to", "accepted_connection_from"})
+_INSIDE_NETWORKS = tuple(
+    ipaddress.ip_network(network)
+    for network in (
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "fc00::/7",
+        "fe80::/10",
+        "::1/128",
+    )
+)
+
+
+def inside_address(value: Any) -> bool | None:
+    """Whether an IP address is in a private or local range; None when it is not an address.
+
+    Documentation ranges count as outside: scenarios use them for external hosts.
+    """
+    try:
+        address = ipaddress.ip_address(str(value).strip())
+    except ValueError:
+        return None
+    return any(address in network for network in _INSIDE_NETWORKS)
 _MAX_REFERENCES_PER_ID = 20
 
 
@@ -241,6 +270,9 @@ class SeenObject:
     logon_id: str | None = None
     # An account object of a built-in identity (SYSTEM, anonymous logon, ...).
     builtin: bool = False
+    # A network connection: its direction and the address at its far end.
+    direction: str | None = None
+    far_address: str | None = None
 
     def relation_fields(self) -> set[str]:
         """All property names of a relation, across its property namespaces."""
@@ -485,6 +517,74 @@ class EvidenceIndex:
         categories = {ref.category for ref in self.references.get(object_id, [])}
         return categories.pop() if len(categories) == 1 else None
 
+    def connection_process(self, connection_id: str) -> str | None:
+        """The process a shown relation ties to a connection, when exactly one is known."""
+        sources = {
+            seen.source_id
+            for seen in self.objects.values()
+            if seen.type in CONNECTION_LINKS and seen.target_id == connection_id and seen.source_id
+        }
+        return sources.pop() if len(sources) == 1 else None
+
+    def far_host(self, connection_id: str) -> str | None:
+        """The shown host at a connection's far end, by its host id or a host relation."""
+        seen = self.objects.get(connection_id)
+        if seen is None or seen.type != CONNECTION_TYPE:
+            return None
+        candidates = [seen.host_id] + [
+            link.target_id
+            for link in self.objects.values()
+            if link.type == "connection_to_host" and link.source_id == connection_id
+        ]
+        for host_id in candidates:
+            host = self.objects.get(host_id or "")
+            if host is not None and host.type == "host":
+                return host.object_id
+        return None
+
+    def sole_channel(self, connection_id: str, cited: set[str]) -> bool:
+        """Whether a shown connection is the single channel of a cited process.
+
+        True when the connection is the only one its process is known to have made or
+        accepted, no other shown connection has the same far end, and the process is cited in
+        the report or is an alert object. An outbound connection to a private address is left
+        out: its far end is an internal host, which a response isolates rather than blocks.
+
+        Why (scripts/connection_keys.py, training traces): such a connection was a key object
+        in 57 of 64 certain cases, every other shown connection in 3 of 1829 — a series from
+        one process or to one destination (beaconing, repeated transfers) is credited to the
+        remote host, if at all. The organisers' reference task cites exactly this object as
+        `network_block`.
+        """
+        seen = self.objects.get(connection_id)
+        if seen is None or seen.type != CONNECTION_TYPE:
+            return False
+        process = self.connection_process(connection_id)
+        if process is None:
+            return False
+        made = {
+            link.target_id
+            for link in self.objects.values()
+            if link.type in CONNECTION_LINKS and link.source_id == process and link.target_id
+        }
+        if made != {connection_id}:
+            return False
+        shown = self.objects.get(process)
+        if process not in cited and not (shown is not None and shown.shown_by == "alert"):
+            return False
+        if seen.direction == "outbound" and inside_address(seen.far_address):
+            return False
+        far_end = (seen.host_id, seen.far_address)
+        return not any(
+            other.object_id != connection_id
+            and other.type == CONNECTION_TYPE
+            and (
+                (far_end[0] is not None and other.host_id == far_end[0])
+                or (far_end[1] is not None and other.far_address == far_end[1])
+            )
+            for other in self.objects.values()
+        )
+
     def unopened(self, around: set[str] | None = None, limit: int = 5) -> list[dict[str, str]]:
         """Entities referenced by what the agent saw but never opened.
 
@@ -564,6 +664,11 @@ class EvidenceIndex:
                 seen.logon_id = logon_id
             if object_type.endswith("_user") and builtin_identity(properties):
                 seen.builtin = True
+            if object_type == CONNECTION_TYPE:
+                direction = properties.get("direction")
+                seen.direction = direction if isinstance(direction, str) else seen.direction
+                far = properties.get("src_ip" if direction == "inbound" else "dst_ip")
+                seen.far_address = str(far) if isinstance(far, (str, int)) else seen.far_address
 
         if category == RELATION:
             for namespace in RELATION_NAMESPACES:
