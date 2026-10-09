@@ -32,7 +32,7 @@ from pydantic import BaseModel, ConfigDict
 
 from bluesec1_agent.evidence import EndpointTypes
 from bluesec1_agent.guarded_task import FINISH_TOOL, CallBudget, GuardedTask, fit_to_schema
-from bluesec1_agent.mock_runtime import DEFAULT_SCENARIO_DIR, MockBenchmarkClient
+from bluesec1_agent.mock_runtime import DEFAULT_SCENARIO_DIR, MockBenchmarkClient, scenario_paths
 from bluesec1_agent.report_review import BENIGN_REPORT_MODES
 from bluesec1_agent.settings import RuntimeSettings
 from bluesec1_agent.transcript import TranscriptWriter, new_run_dir
@@ -295,7 +295,7 @@ class BluesecService:
                 return {"error": "A run is already open in this server.", "run_id": self.run_id}
             settings = self._settings_loader()
             if arena == OFFLINE_ARENA:
-                client: Any = MockBenchmarkClient(sorted(self._scenario_dir.glob("*.json")))
+                client: Any = MockBenchmarkClient(scenario_paths(self._scenario_dir))
             else:
                 metadata = {
                     "agent": settings.agent_name,
@@ -947,9 +947,10 @@ def tag_task(
     then submits the final report, or finalize_draft submits the draft unchanged.
     get_alert shows harness.anchors (the trigger's bare user names, logon ids, hosts and
     first-to-last time span) unless anchors=false. The final report loses cited relations,
-    network connections, PowerShell scripts and cmdlet invocations, and a malicious report
-    also processes on the trigger's host outside the trigger's logon session (alert objects
-    stay, at least 3 items remain) unless report_filter=false. With read_bump=true (off by
+    network connections (a malicious report keeps the single connection of a cited process),
+    PowerShell scripts and cmdlet invocations, and a malicious report also processes on the
+    trigger's host outside the trigger's logon session (alert objects stay, at least 3 items
+    remain) unless report_filter=false. With read_bump=true (off by
     default) the first get_entity on an id predicted to be a connection, process or script is
     refused locally (the repeat runs). benign_report sets what the report filter keeps in a
     benign report: "evidence" = accounts, files and certificate templates only (at least one

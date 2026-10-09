@@ -627,6 +627,143 @@ def test_the_report_filter_drops_connections_before_submission() -> None:
     assert "report filter dropped 1 network_connection" in finished["harness"]["repairs"]
 
 
+def channel_index(*rows: dict[str, Any]) -> EvidenceIndex:
+    """An index holding a trigger process, its host and the given live-shaped search rows."""
+    index = EvidenceIndex()
+    index.record_alert(
+        {
+            "trigger_entities": [
+                {"id": "host", "type": "host", "properties": {"hostname": "WS01"}},
+                {
+                    "id": "proc",
+                    "type": "windows_process",
+                    "properties": {"image_path": "C:\\Users\\a\\Desktop\\d.exe"},
+                    "host_id": "host",
+                },
+            ]
+        }
+    )
+    index.record_result("search", {"query": "proc"}, {"results": list(rows)})
+    return index
+
+
+def connection(object_id: str, far: str, direction: str = "outbound", host: str = "") -> dict:
+    """A connection row; `far` is the address at the other end."""
+    local = "10.0.0.5"
+    return {
+        "kind": "entity",
+        "id": object_id,
+        "type": "network_connection",
+        "properties": {
+            "src_ip": far if direction == "inbound" else local,
+            "dst_ip": local if direction == "inbound" else far,
+            "dst_port": 443,
+            "direction": direction,
+        },
+        "host_id": host or f"host-of-{object_id}",
+    }
+
+
+def link(process: str, target: str, relation: str = "connected_to") -> dict[str, Any]:
+    return {
+        "kind": "relation",
+        "id": f"{relation}:{process}:{target}",
+        "type": relation,
+        "source_id": process,
+        "target_id": target,
+    }
+
+
+def filtered_ids(index: EvidenceIndex, *artifacts: tuple[str, str]) -> list[str]:
+    body, _ = filter_report(malicious(*artifacts)["submission"], index)
+    return [item["entity_id"] for item in body["ir_artifacts"]]
+
+
+CHANNEL_REPORT = (
+    ("host", "host_to_isolate"),
+    ("proc", "process_observed"),
+    ("file", "file_to_delete"),
+    ("net", "network_block"),
+)
+FILE_ROW = {"kind": "entity", "id": "file", "type": "windows_file", "properties": {"path": "x"}}
+
+
+def test_the_only_connection_of_a_cited_process_stays_in_a_malicious_report() -> None:
+    # The organisers' reference report names this connection as network_block.
+    index = channel_index(FILE_ROW, connection("net", "154.89.152.59"), link("proc", "net"))
+
+    assert index.sole_channel("net", {"proc"})
+    assert filtered_ids(index, *CHANNEL_REPORT) == ["host", "proc", "file", "net"]
+    # a benign report never keeps a connection
+    cited = [evidence("file", "path"), evidence("net", "dst_port")]
+    body, dropped = filter_report(benign(*cited)["submission"], index, "evidence")
+    assert [item["entity_id"] for item in body["legitimacy_evidence"]] == ["file"]
+    assert [record["type"] for record in dropped] == ["network_connection"]
+
+
+def test_a_connection_of_a_series_or_of_an_uncited_process_is_still_dropped() -> None:
+    kept = ["host", "proc", "file"]
+    # two connections from one process: beaconing or repeated transfers
+    series = channel_index(
+        FILE_ROW,
+        connection("net", "154.89.152.59"),
+        connection("net2", "154.89.152.60"),
+        link("proc", "net"),
+        link("proc", "net2"),
+    )
+    assert filtered_ids(series, *CHANNEL_REPORT) == kept
+    # another shown connection has the same far end
+    shared = channel_index(
+        FILE_ROW,
+        connection("net", "154.89.152.59"),
+        connection("net2", "154.89.152.59"),
+        link("proc", "net"),
+        link("other", "net2"),
+    )
+    assert filtered_ids(shared, *CHANNEL_REPORT) == kept
+    # no relation shows which process made it
+    unlinked = channel_index(FILE_ROW, connection("net", "154.89.152.59"))
+    assert filtered_ids(unlinked, *CHANNEL_REPORT) == kept
+    # its process is neither cited nor an alert object
+    foreign = channel_index(FILE_ROW, connection("net", "154.89.152.59"), link("other", "net"))
+    assert filtered_ids(foreign, *CHANNEL_REPORT) == kept
+    # outbound to an internal host: the response isolates that host instead
+    lateral = channel_index(FILE_ROW, connection("net", "10.0.0.9"), link("proc", "net"))
+    assert filtered_ids(lateral, *CHANNEL_REPORT) == kept
+
+
+def test_a_dropped_network_block_connection_gives_way_to_its_shown_remote_host() -> None:
+    remote = {"kind": "entity", "id": "c2", "type": "host", "properties": {"ip": "154.89.152.59"}}
+    rows = (
+        FILE_ROW,
+        connection("net", "154.89.152.59", host="c2"),
+        connection("net2", "154.89.152.59", host="c2"),
+        link("proc", "net"),
+        link("proc", "net2"),
+    )
+    # a series: the report named one of its connections, the remote host was opened
+    index = channel_index(*rows, remote)
+    body, dropped = filter_report(malicious(*CHANNEL_REPORT)["submission"], index)
+    assert body["ir_artifacts"][-1] == {"entity_id": "c2", "kind": "network_block"}
+    assert [record.get("replaced_by") for record in dropped] == ["c2"]
+    # the host is already listed, was never opened, or the connection had another kind
+    listed = (*CHANNEL_REPORT, ("c2", "network_block"))
+    assert filtered_ids(index, *listed) == ["host", "proc", "file", "c2"]
+    assert filtered_ids(channel_index(*rows), *CHANNEL_REPORT) == ["host", "proc", "file"]
+    other_kind = (*CHANNEL_REPORT[:3], ("net", "artifact_observed"))
+    assert filtered_ids(index, *other_kind) == ["host", "proc", "file"]
+
+
+def test_an_inbound_connection_accepted_by_a_cited_process_stays() -> None:
+    index = channel_index(
+        FILE_ROW,
+        connection("net", "10.0.0.9", direction="inbound"),
+        link("proc", "net", "accepted_connection_from"),
+    )
+
+    assert filtered_ids(index, *CHANNEL_REPORT) == ["host", "proc", "file", "net"]
+
+
 def test_the_report_filter_keeps_alert_objects_and_a_floor_of_three_items() -> None:
     extra = {
         "net:c2b": {"type": "network_connection", "remote_ip": "203.0.113.10", "remote_port": 80}

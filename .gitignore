@@ -11,4 +11,8 @@ build/
 # Local traces: raw task data, keep private (rules forbid publishing tasks/solutions).
 runs/
 
+# Finder metadata
 .DS_Store
+
+# Organisers' reference task: local only, never committed or exported.
+reference_tasks/

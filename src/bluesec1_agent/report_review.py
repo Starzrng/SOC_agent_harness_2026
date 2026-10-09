@@ -18,7 +18,7 @@ and from a benign report whatever its mode does not keep (BENIGN_REPORT_MODES).
 from dataclasses import dataclass, field
 from typing import Any
 
-from bluesec1_agent.evidence import AD_OBJECT, ENTITY, RELATION, EvidenceIndex
+from bluesec1_agent.evidence import AD_OBJECT, CONNECTION_TYPE, ENTITY, RELATION, EvidenceIndex
 
 PROCESS_TYPES = frozenset({"windows_process", "linux_process"})
 FILE_TYPES = frozenset({"windows_file", "linux_file", "archive_file"})
@@ -76,9 +76,9 @@ LONG_BENIGN_REPORT = 15
 # Report filter: object types that almost never count as key objects, while every cited item
 # costs points. Response actions name the address, file, process or account instead of the
 # connection record, script text or cmdlet call; relations are dropped for the same reason.
-FILTERED_TYPES = frozenset(
-    {"network_connection", "powershell_script", "powershell_cmdlet_invocation"}
-)
+# One connection is the exception in a malicious report: the single channel of a cited process
+# (`EvidenceIndex.sole_channel`) is what `network_block` names.
+FILTERED_TYPES = frozenset({CONNECTION_TYPE, "powershell_script", "powershell_cmdlet_invocation"})
 FILTER_FLOOR = 3
 # Benign reports. A correct verdict with an empty report earns half the task maximum and every
 # cited item that is not a key object costs a fixed amount, so an item pays only when its type
@@ -446,6 +446,13 @@ def filter_report(
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Drop cited relations and objects of FILTERED_TYPES before submission.
 
+    A malicious report keeps one kind of connection: the only connection of a cited process
+    or alert object, with a far end no other shown connection has (`sole_channel`). Another
+    connection cited as `network_block` is replaced by the shown host at its far end when the
+    report does not list that host (the record gets `replaced_by`): on training such a host
+    was a key object in 16 of 19 certain cases, and it is what the report named before
+    2026-10-08.
+
     A malicious report also loses processes that ran on the trigger's host outside the
     trigger's logon session: system-session targets and hosts of the attack (the process
     whose memory was read, a WMI or service host) are almost never key objects; a response
@@ -466,6 +473,12 @@ def filter_report(
     trigger_sessions = {seen.logon_id for seen in triggers if seen.logon_id}
     trigger_hosts = {seen.host_id for seen in triggers if seen.host_id}
     trigger_hosts |= {seen.object_id for seen in triggers if seen.type == "host"}
+    cited = {
+        str(item.get("entity_id") or item.get("relation_id") or "")
+        for section in ("ir_artifacts", "legitimacy_evidence")
+        for item in body.get(section) or []
+        if isinstance(item, dict)
+    }
     candidates: list[tuple[str, int, dict[str, Any]]] = []
     total = 0
     for section in ("ir_artifacts", "legitimacy_evidence"):
@@ -500,7 +513,12 @@ def filter_report(
                 and seen.logon_id not in trigger_sessions
                 and seen.host_id in trigger_hosts
             )
-            if reason or category == RELATION or object_type in FILTERED_TYPES or other_session:
+            filtered_type = object_type in FILTERED_TYPES and not (
+                section == "ir_artifacts"
+                and object_type == CONNECTION_TYPE
+                and index.sole_channel(object_id, cited)
+            )
+            if reason or category == RELATION or filtered_type or other_session:
                 record = {
                     "section": section,
                     "position": position,
@@ -520,14 +538,31 @@ def filter_report(
     dropped = candidates[len(candidates) - allowed :] if allowed < len(candidates) else candidates
     if not dropped:
         return body, []
-    gone = {(section, position) for section, position, _ in dropped}
+    gone = {(section, position): record for section, position, record in dropped}
+    listed = set(cited)
     filtered = dict(body)
     for section in ("ir_artifacts", "legitimacy_evidence"):
         items = body.get(section)
-        if isinstance(items, list):
-            filtered[section] = [
-                item for position, item in enumerate(items, 1) if (section, position) not in gone
-            ]
+        if not isinstance(items, list):
+            continue
+        kept = []
+        for position, item in enumerate(items, 1):
+            record = gone.get((section, position))
+            if record is None:
+                kept.append(item)
+                continue
+            host = (
+                index.far_host(record["id"])
+                if section == "ir_artifacts"
+                and record["type"] == CONNECTION_TYPE
+                and item.get("kind") == "network_block"
+                else None
+            )
+            if host is not None and host not in listed:
+                listed.add(host)
+                record["replaced_by"] = host
+                kept.append({"entity_id": host, "kind": "network_block"})
+        filtered[section] = kept
     return filtered, [record for _, _, record in dropped]
 
 

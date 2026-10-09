@@ -26,9 +26,13 @@ CASES = [
     "synthetic_benign_admin_account_onboarding",
     "synthetic_benign_admin_wmi_restart",
     "synthetic_benign_linux_config_sync",
+    "synthetic_benign_vuln_scanner_sweep",
+    "synthetic_benign_web_app_converter",
     "synthetic_malicious_admin_account_backdoor",
     "synthetic_malicious_admin_wmi_trojan",
     "synthetic_malicious_linux_ssh_intrusion",
+    "synthetic_malicious_scanner_host_spray",
+    "synthetic_malicious_web_app_cmd_injection",
 ]
 
 
